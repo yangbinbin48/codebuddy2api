@@ -5,7 +5,8 @@
 ## 🌟 功能特性
 
 - 🔌 **OpenAI 兼容接口**：支持标准的 `/v1/chat/completions` API，无缝对接现有生态。
-- 🔄 **智能响应处理**：即使 CodeBuddy 原生仅支持流式响应，本服务也能为客户端智能处理**非流式**请求，并在后端自动完成“流式转非流式”的响应包装。
+- 🤖 **Anthropic 兼容接口**：支持 Anthropic Messages API (`/anthropic/v1/messages`)，可供 Claude Code 等工具直接连接使用。
+- 🔄 **智能响应处理**：即使 CodeBuddy 原生仅支持流式响应，本服务也能为客户端智能处理**非流式**请求，并在后端自动完成”流式转非流式”的响应包装。
 - ⚡ **高性能**：完全基于 FastAPI 和 `asyncio` 构建，支持高并发异步请求。
 - 🔐 **双重认证机制**：
     - **服务访问认证**：通过环境变量设置密码，保护整个代理服务。
@@ -161,11 +162,32 @@ curl -X POST "http://127.0.0.1:8001/codebuddy/v1/chat/completions" \
 
 ## 📝 API 端点
 
+### OpenAI 兼容 API
+
 - `POST /codebuddy/v1/chat/completions`: 核心接口，用于发送聊天请求。
 - `GET /codebuddy/v1/models`: 获取在 `.env` 文件中配置的模型列表。
 - `GET /codebuddy/v1/credentials`: （需要认证）在 Web UI 中用于列出所有凭证。
 - `POST /codebuddy/v1/credentials`: （需要认证）在 Web UI 中用于添加新凭证。
+
+### Anthropic 兼容 API
+
+- `POST /anthropic/v1/messages`: Anthropic Messages API，供 Claude Code 等工具使用。
+
+### 其他
+
 - `GET /health`: 服务的健康检查端点。
+
+### Claude Code 接入配置
+
+在 Claude Code 中设置以下环境变量即可直接使用：
+
+```bash
+ANTHROPIC_API_KEY=your_secret_password_for_this_service
+ANTHROPIC_BASE_URL=http://127.0.0.1:8001/anthropic
+ANTHROPIC_MODEL=auto-chat
+```
+
+Claude Code 发送的 `claude-xxx` 模型名会自动映射为 `CODEBUDDY_MODELS` 列表中的第一个可用模型。
 
 ## 🔧 项目结构
 
@@ -173,6 +195,9 @@ curl -X POST "http://127.0.0.1:8001/codebuddy/v1/chat/completions" \
 codebuddy2api/
 ├── src/                           # 源代码目录
 │   ├── auth.py                    # 服务访问认证模块
+│   ├── anthropic_auth.py          # Anthropic API 认证模块 (x-api-key)
+│   ├── anthropic_converter.py     # Anthropic ↔ OpenAI 格式转换器
+│   ├── anthropic_router.py        # Anthropic Messages API 路由
 │   ├── codebuddy_api_client.py    # 封装了与CodeBuddy官方API的通信
 │   ├── codebuddy_auth_router.py   # CodeBuddy OAuth2 认证路由
 │   ├── codebuddy_token_manager.py # CodeBuddy凭证加载与轮换管理器

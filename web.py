@@ -13,6 +13,7 @@ from src.codebuddy_router import router as codebuddy_router, lifecycle_manager
 from src.codebuddy_auth_router import router as codebuddy_auth_router
 from src.settings_router import router as settings_router
 from src.frontend_router import router as frontend_router
+from src.anthropic_router import router as anthropic_router
 
 from config import get_server_host, get_server_port, get_log_level
 
@@ -75,6 +76,13 @@ app.include_router(
     tags=["CodeBuddy Compatible API"]
 )
 
+# 挂载Anthropic Messages API路由
+app.include_router(
+    anthropic_router,
+    prefix="/anthropic",
+    tags=["Anthropic Messages API"]
+)
+
 # 挂载设置路由
 app.include_router(
     settings_router,
@@ -103,6 +111,7 @@ async def root():
             "auth_start": "/codebuddy/auth/start",
             "auth_poll": "/codebuddy/auth/poll",
             "auth_callback": "/codebuddy/auth/callback",
+            "anthropic_messages": "/anthropic/v1/messages",
             "get_settings": "/api/settings",
             "save_settings": "/api/settings"
         }
@@ -128,6 +137,7 @@ if __name__ == "__main__":
     logger.info(f"   Models: GET http://{host}:{port}/codebuddy/v1/models")
     logger.info(f"   Chat: POST http://{host}:{port}/codebuddy/v1/chat/completions")
     logger.info(f"   Credentials: GET http://{host}:{port}/codebuddy/v1/credentials")
+    logger.info(f"   Anthropic Messages: POST http://{host}:{port}/anthropic/v1/messages")
     logger.info("=" * 60)
     logger.info("Authentication:")
     logger.info("   Set CODEBUDDY_PASSWORD environment variable")
