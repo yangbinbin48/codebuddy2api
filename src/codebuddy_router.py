@@ -429,17 +429,33 @@ class CodeBuddyStreamService:
         self.connection_manager = SSEConnectionManager(max_retries=3, retry_delay=1.0)
     
     def _handle_api_error(self, status_code: int, error_msg: str) -> None:
-        """统一的API错误处理 - 直接抛出异常"""
+        """统一的API错误处理 - 透传上游错误信息便于调试"""
         logger.error(f"CodeBuddy API错误: {status_code} - {error_msg}")
-        
+
+        # 尝试解析上游错误信息，透传给客户端
+        detail = f"CodeBuddy API error ({status_code}): {error_msg}"
+        try:
+            error_data = json.loads(error_msg)
+            # 尝试提取嵌套的错误信息
+            inner = error_data.get("error", {})
+            if isinstance(inner, dict):
+                inner_data = inner.get("data", {})
+                if isinstance(inner_data, dict):
+                    code = inner_data.get("code", "")
+                    msg = inner_data.get("msg", "")
+                    if msg:
+                        detail = f"CodeBuddy API error [{code}]: {msg}"
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
         if status_code == 401:
-            raise HTTPException(status_code=401, detail="CodeBuddy API authentication failed")
+            raise HTTPException(status_code=401, detail=detail)
         elif status_code == 429:
-            raise HTTPException(status_code=429, detail="CodeBuddy API rate limit exceeded")
+            raise HTTPException(status_code=429, detail=detail)
         elif status_code >= 500:
-            raise HTTPException(status_code=502, detail="CodeBuddy API server error")
+            raise HTTPException(status_code=502, detail=detail)
         else:
-            raise HTTPException(status_code=status_code, detail=f"CodeBuddy API error: {error_msg}")
+            raise HTTPException(status_code=status_code, detail=detail)
     
     async def handle_stream_response(self, payload: Dict[str, Any], headers: Dict[str, str]) -> StreamingResponse:
         """处理流式响应 - 使用OpenAI兼容性转换器修复格式问题"""
@@ -449,7 +465,8 @@ class CodeBuddyStreamService:
                 if response.status_code != 200:
                     error_text = await response.aread()
                     error_msg = error_text.decode('utf-8', errors='ignore')
-                    yield format_sse_error(f"CodeBuddy API error: {response.status_code} - {error_msg}", "api_error")
+                    logger.error(f"CodeBuddy 流式API错误: {response.status_code} - {error_msg}")
+                    yield format_sse_error(f"CodeBuddy API error ({response.status_code}): {error_msg}", "api_error")
                     return
                 
                 buffer = ""

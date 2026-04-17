@@ -20,10 +20,28 @@ import logging
 logger = logging.getLogger(__name__)
 
 # --- Constants ---
-CODEBUDDY_BASE_URL = 'https://www.codebuddy.ai'
-CODEBUDDY_AUTH_TOKEN_ENDPOINT = f'{CODEBUDDY_BASE_URL}/v2/plugin/auth/token'
-CODEBUDDY_AUTH_STATE_ENDPOINT = f'{CODEBUDDY_BASE_URL}/v2/plugin/auth/state'
 _last_auth_state: Optional[str] = None
+
+
+def _get_base_url() -> str:
+    """从配置获取CodeBuddy基础URL"""
+    from config import get_codebuddy_api_endpoint
+    return get_codebuddy_api_endpoint()
+
+
+def _get_auth_endpoints() -> tuple:
+    """获取认证相关端点"""
+    base_url = _get_base_url()
+    token_endpoint = f'{base_url}/v2/plugin/auth/token'
+    state_endpoint = f'{base_url}/v2/plugin/auth/state'
+    return token_endpoint, state_endpoint
+
+
+def _get_host_from_url(url: str) -> str:
+    """从URL中提取Host"""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    return parsed.hostname
 
 # --- Router Setup ---
 router = APIRouter()
@@ -62,31 +80,47 @@ def generate_auth_state() -> str:
 
 def get_auth_start_headers() -> Dict[str, str]:
     """生成启动认证(/state)所需的请求头"""
+    from config import get_enterprise_id
     request_id = str(uuid.uuid4()).replace('-', '')
-    return {
-        'Host': 'www.codebuddy.ai',
+    host = _get_host_from_url(_get_base_url())
+    enterprise_id = get_enterprise_id()
+
+    headers = {
+        'Host': host,
         'Accept': 'application/json, text/plain, */*',
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
         'Connection': 'close',
         'X-Requested-With': 'XMLHttpRequest',
-        'X-Domain': 'www.codebuddy.ai',
-        'X-No-Authorization': 'true',
-        'X-No-User-Id': 'true',
-        'X-No-Enterprise-Id': 'true',
-        'X-No-Department-Info': 'true',
-        'User-Agent': 'CLI/1.0.8 CodeBuddy/1.0.8',
-        'X-Product': 'SaaS',
+        'X-Domain': host,
+        'User-Agent': 'VSCode/1.115.0 H3CAICODE/4.2.22590715' if enterprise_id else 'CLI/1.0.8 CodeBuddy/1.0.8',
+        'X-Product': 'Cloud-Hosted' if enterprise_id else 'SaaS',
         'X-Request-ID': request_id,
     }
 
+    if enterprise_id:
+        headers['X-Enterprise-Id'] = enterprise_id
+        headers['X-Tenant-Id'] = enterprise_id
+        headers['X-Env-ID'] = 'production'
+    else:
+        headers['X-No-Authorization'] = 'true'
+        headers['X-No-User-Id'] = 'true'
+        headers['X-No-Enterprise-Id'] = 'true'
+        headers['X-No-Department-Info'] = 'true'
+
+    return headers
+
 def get_auth_poll_headers() -> Dict[str, str]:
     """生成轮询认证(/token)所需的请求头"""
+    from config import get_enterprise_id
     request_id = str(uuid.uuid4()).replace('-', '')
     span_id = secrets.token_hex(8)
-    return {
-        'Host': 'www.codebuddy.ai',
+    host = _get_host_from_url(_get_base_url())
+    enterprise_id = get_enterprise_id()
+
+    headers = {
+        'Host': host,
         'Accept': 'application/json, text/plain, */*',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
@@ -98,45 +132,55 @@ def get_auth_poll_headers() -> Dict[str, str]:
         'X-B3-ParentSpanId': '',
         'X-B3-SpanId': span_id,
         'X-B3-Sampled': '1',
-        'X-No-Authorization': 'true',
-        'X-No-User-Id': 'true',
-        'X-No-Enterprise-Id': 'true',
-        'X-No-Department-Info': 'true',
-        'X-Domain': 'www.codebuddy.ai',
-        'User-Agent': 'CLI/1.0.8 CodeBuddy/1.0.8',
-        'X-Product': 'SaaS',
+        'X-Domain': host,
+        'User-Agent': 'VSCode/1.115.0 H3CAICODE/4.2.22590715' if enterprise_id else 'CLI/1.0.8 CodeBuddy/1.0.8',
+        'X-Product': 'Cloud-Hosted' if enterprise_id else 'SaaS',
     }
+
+    if enterprise_id:
+        headers['X-Enterprise-Id'] = enterprise_id
+        headers['X-Tenant-Id'] = enterprise_id
+        headers['X-Env-ID'] = 'production'
+    else:
+        headers['X-No-Authorization'] = 'true'
+        headers['X-No-User-Id'] = 'true'
+        headers['X-No-Enterprise-Id'] = 'true'
+        headers['X-No-Department-Info'] = 'true'
+
+    return headers
 
 async def start_codebuddy_auth() -> Dict[str, Any]:
     """启动CodeBuddy认证流程"""
     try:
         logger.info("启动CodeBuddy认证流程...")
-        
+
         headers = get_auth_start_headers()
-        
+        token_endpoint, state_endpoint = _get_auth_endpoints()
+        base_url = _get_base_url()
+
         # 调用 /v2/plugin/auth/state 获取认证状态和URL
         async with httpx.AsyncClient(verify=False) as client:
             # 为避免上游/中间层缓存，添加随机nonce参数，确保每次请求唯一
             nonce = secrets.token_hex(8)
-            state_url = f"{CODEBUDDY_AUTH_STATE_ENDPOINT}?platform=CLI&nonce={nonce}"
+            state_url = f"{state_endpoint}?platform=VSCode&nonce={nonce}"
             payload = {"nonce": nonce}
-            
+
             response = await client.post(state_url, json=payload, headers=headers, timeout=30)
-            
+
             if response.status_code == 200:
                 result = response.json()
                 if result.get('code') == 0 and result.get('data'):
                     data = result['data']
                     auth_state = data.get('state')
                     auth_url = data.get('authUrl')
-                    
+
                     if auth_state and auth_url:
                         global _last_auth_state
                         if _last_auth_state and auth_state == _last_auth_state:
                             logger.warning("上游返回的state与上一次相同，尝试重新获取新的state...")
                             try:
                                 nonce2 = secrets.token_hex(8)
-                                state_url2 = f"{CODEBUDDY_AUTH_STATE_ENDPOINT}?platform=CLI&nonce={nonce2}"
+                                state_url2 = f"{state_endpoint}?platform=VSCode&nonce={nonce2}"
                                 payload2 = {"nonce": nonce2}
                                 async with httpx.AsyncClient(verify=False) as client2:
                                     response2 = await client2.post(state_url2, json=payload2, headers=headers, timeout=30)
@@ -151,22 +195,22 @@ async def start_codebuddy_auth() -> Dict[str, Any]:
                                             auth_url = nu
                             except Exception:
                                 pass
-                        token_endpoint = f"{CODEBUDDY_AUTH_TOKEN_ENDPOINT}?state={auth_state}"
+                        token_ep = f"{token_endpoint}?state={auth_state}"
                         _last_auth_state = auth_state
-                        
+
                         return {
                             "success": True,
                             "method": "codebuddy_real_auth",
                             "auth_state": auth_state,
                             "verification_uri_complete": auth_url,
-                            "verification_uri": CODEBUDDY_BASE_URL,
-                            "token_endpoint": token_endpoint,
+                            "verification_uri": base_url,
+                            "token_endpoint": token_ep,
                             "expires_in": 1800,
                             "interval": 5,
                             "status": "awaiting_login",
                             "instructions": "请点击链接完成CodeBuddy登录",
                             "message": "请使用提供的链接登录CodeBuddy",
-                            "platform": "CLI"
+                            "platform": "VSCode"
                         }
                         
         return {
@@ -187,7 +231,8 @@ async def poll_codebuddy_auth_status(auth_state: str) -> Dict[str, Any]:
     """轮询CodeBuddy认证状态"""
     try:
         headers = get_auth_poll_headers()
-        url = f"{CODEBUDDY_AUTH_TOKEN_ENDPOINT}?state={auth_state}"
+        token_endpoint, _ = _get_auth_endpoints()
+        url = f"{token_endpoint}?state={auth_state}"
         
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.get(url, headers=headers, timeout=30)

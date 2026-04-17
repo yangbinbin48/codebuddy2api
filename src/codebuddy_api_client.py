@@ -14,11 +14,19 @@ logger = logging.getLogger(__name__)
 
 class CodeBuddyAPIClient:
     """CodeBuddy API客户端"""
-    
+
     def __init__(self):
         from config import get_codebuddy_api_endpoint
         self.base_url = get_codebuddy_api_endpoint()
         self.api_endpoint = self.base_url  # 直接使用base_url，不需要plugin前缀
+        self._host = self._extract_host(self.base_url)
+
+    @staticmethod
+    def _extract_host(url: str) -> str:
+        """从URL中提取host"""
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        return parsed.hostname
         
     def convert_openai_to_codebuddy_messages(self, openai_messages: List[Dict]) -> List[Dict]:
         """将OpenAI格式消息转换为CodeBuddy格式"""
@@ -177,34 +185,60 @@ class CodeBuddyAPIClient:
     ) -> Dict[str, str]:
         """
         生成CodeBuddy API所需的完整请求头。
-        优先使用传入的会话ID，如果未提供则随机生成。
+        自动检测企业版模式并使用对应的请求头。
         """
-        headers = {
-            'Host': 'www.codebuddy.ai',
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'x-stainless-arch': 'x64',
-            'x-stainless-lang': 'js',
-            'x-stainless-os': 'Windows',
-            'x-stainless-package-version': '5.10.1',
-            'x-stainless-retry-count': '0',
-            'x-stainless-runtime': 'node',
-            'x-stainless-runtime-version': 'v22.13.1',
-            'X-Conversation-ID': conversation_id or str(uuid.uuid4()),
-            'X-Conversation-Request-ID': conversation_request_id or secrets.token_hex(16),
-            'X-Conversation-Message-ID': conversation_message_id or str(uuid.uuid4()).replace('-', ''),
-            'X-Request-ID': request_id or str(uuid.uuid4()).replace('-', ''),
-            'X-Agent-Intent': 'craft',
-            'X-IDE-Type': 'CLI',
-            'X-IDE-Name': 'CLI',
-            'X-IDE-Version': '1.0.7',
-            'Authorization': f'Bearer {bearer_token}',
-            'X-Domain': 'www.codebuddy.ai',
-            'User-Agent': 'CLI/1.0.7 CodeBuddy/1.0.7',
-            'X-Product': 'SaaS',
-            'X-User-Id': user_id or 'b5be3a67-237e-4ee6-9b9a-0b9ecd7b454b'
-        }
+        from config import get_enterprise_id
+
+        enterprise_id = get_enterprise_id()
+        is_enterprise = bool(enterprise_id)
+
+        if is_enterprise:
+            # 企业版请求头
+            headers = {
+                'Host': self._host,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json;charset=UTF-8',
+                'Authorization': f'Bearer {bearer_token}',
+                'X-User-Id': user_id or '',
+                'X-Enterprise-Id': enterprise_id,
+                'X-Tenant-Id': enterprise_id,
+                'X-Domain': self._host,
+                'X-Product': 'Cloud-Hosted',
+                'X-IDE-Type': 'VSCode',
+                'X-IDE-Version': '1.115.0',
+                'X-Product-Version': '4.2.22590715',
+                'X-Env-ID': 'production',
+                'User-Agent': 'VSCode/1.115.0 H3CAICODE/4.2.22590715',
+                'X-Request-Trace-Id': request_id or str(uuid.uuid4()).replace('-', ''),
+            }
+        else:
+            # SaaS 版请求头
+            headers = {
+                'Host': self._host,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'x-stainless-arch': 'x64',
+                'x-stainless-lang': 'js',
+                'x-stainless-os': 'Windows',
+                'x-stainless-package-version': '5.10.1',
+                'x-stainless-retry-count': '0',
+                'x-stainless-runtime': 'node',
+                'x-stainless-runtime-version': 'v22.13.1',
+                'X-Conversation-ID': conversation_id or str(uuid.uuid4()),
+                'X-Conversation-Request-ID': conversation_request_id or secrets.token_hex(16),
+                'X-Conversation-Message-ID': conversation_message_id or str(uuid.uuid4()).replace('-', ''),
+                'X-Request-ID': request_id or str(uuid.uuid4()).replace('-', ''),
+                'X-Agent-Intent': 'craft',
+                'X-IDE-Type': 'CLI',
+                'X-IDE-Name': 'CLI',
+                'X-IDE-Version': '1.0.7',
+                'Authorization': f'Bearer {bearer_token}',
+                'X-Domain': self._host,
+                'User-Agent': 'CLI/1.0.7 CodeBuddy/1.0.7',
+                'X-Product': 'SaaS',
+                'X-User-Id': user_id or 'b5be3a67-237e-4ee6-9b9a-0b9ecd7b454b'
+            }
         return headers
 
 

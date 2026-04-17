@@ -21,13 +21,14 @@ _CONFIG_JSON_PATH = 'config/config.json'  # Use a path inside a directory
 
 _DEFAULT_CONFIG = {
     "CODEBUDDY_HOST": "127.0.0.1",
-    "CODEBUDDY_PORT": 8001,
+    "CODEBUDDY_PORT": 8010,
     "CODEBUDDY_PASSWORD": None,
     "CODEBUDDY_API_ENDPOINT": "https://www.codebuddy.ai",
     "CODEBUDDY_CREDS_DIR": ".codebuddy_creds",
     "CODEBUDDY_LOG_LEVEL": "INFO",
     "CODEBUDDY_MODELS": "claude-4.0,claude-3.7,gpt-5,gpt-5-mini,gpt-5-nano,o4-mini,gemini-2.5-flash,gemini-2.5-pro,auto-chat",
-    "CODEBUDDY_ROTATION_COUNT": 1
+    "CODEBUDDY_ROTATION_COUNT": 1,
+    "CODEBUDDY_ENTERPRISE_ID": None,
 }
 
 # --- Core Functions ---
@@ -130,6 +131,9 @@ def get_available_models() -> list:
 
 def get_rotation_count() -> int:
     return int(_get_config_value("CODEBUDDY_ROTATION_COUNT"))
+
+def get_enterprise_id() -> Optional[str]:
+    return _get_config_value("CODEBUDDY_ENTERPRISE_ID")
 
 # --- Public Setter for Hot-Reload ---
 

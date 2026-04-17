@@ -1477,9 +1477,7 @@
                     <div class="form-group">
                         <label class="form-label" for="testModel">模型</label>
                         <select id="testModel" class="form-input">
-                            <option value="auto-chat">auto-chat</option>
-                            <option value="claude-4.0">claude-4.0</option>
-                            <option value="gpt-5">gpt-5</option>
+                            <!-- 动态从API加载 -->
                         </select>
                     </div>
                     <div class="form-group">
@@ -1513,32 +1511,10 @@
                         <h3 class="card-title">API 使用示例</h3>
                     </div>
                     <h4 style="margin-bottom: 1rem; color: var(--primary-color);">curl 示例:</h4>
-                    <div class="code-block">curl -X POST "http://127.0.0.1:8001/codebuddy/v1/chat/completions" \
-      -H "Authorization: Bearer YOUR_PASSWORD" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "model": "auto-chat",
-        "messages": [
-          {"role": "user", "content": "Hello!"}
-        ]
-      }'</div>
+                    <div class="code-block" id="curlExample">加载中...</div>
 
                     <h4 style="margin: 1.5rem 0 1rem; color: var(--primary-color);">Python 示例:</h4>
-                    <div class="code-block">import openai
-
-    client = openai.OpenAI(
-        api_key="YOUR_PASSWORD",
-        base_url="http://127.0.0.1:8001/codebuddy/v1"
-    )
-
-    response = client.chat.completions.create(
-        model="auto-chat",
-        messages=[
-            {"role": "user", "content": "Hello!"}
-        ]
-    )
-
-    print(response.choices[0].message.content)</div>
+                    <div class="code-block" id="pythonExample">加载中...</div>
                 </div>
             </div>
 
@@ -1648,6 +1624,9 @@
                     break;
                 case 'credentials':
                     loadCredentials();
+                    break;
+                case 'api-test':
+                    loadModels();
                     break;
                 case 'settings':
                     loadSettings();
@@ -1761,6 +1740,8 @@
                 loadDashboard();
             } else if (tabId === 'credentials') {
                 loadCredentials();
+            } else if (tabId === 'api-test') {
+                loadModels();
             } else if (tabId === 'settings') {
                 loadSettings();
             }
@@ -2529,11 +2510,7 @@
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({
-                        // 在后端，token管理器是轮换的，我们无法直接指定用哪个token
-                        // 所以这里的测试实际上是测试下一个将被轮换到的token
-                        // 为了更精确，理想的后端应该有一个专门的测试接口
-                        // 但在当前架构下，这是最好的模拟
-                        model: 'claude-4.0',
+                        model: document.getElementById('testModel').value || 'glm-5.0',
                         messages: [{ role: 'user', content: 'test' }],
                         max_tokens: 1
                     })
@@ -2556,6 +2533,69 @@
         }
 
         // API测试功能
+        async function loadModels() {
+            const select = document.getElementById('testModel');
+            if (select.options.length > 0) return; // 已加载过则跳过
+
+            try {
+                const response = await fetch('/codebuddy/v1/models', { headers: getAuthHeaders() });
+                if (response.ok) {
+                    const data = await response.json();
+                    const models = data.data || [];
+                    select.innerHTML = '';
+                    models.forEach((model, index) => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = model.id;
+                        if (index === 0) option.selected = true;
+                        select.appendChild(option);
+                    });
+
+                    // 更新示例代码
+                    updateExamples(models.length > 0 ? models[0].id : 'glm-5.0');
+                } else {
+                    select.innerHTML = '<option value="glm-5.0">glm-5.0 (默认)</option>';
+                    updateExamples('glm-5.0');
+                }
+            } catch (error) {
+                select.innerHTML = '<option value="glm-5.0">glm-5.0 (默认)</option>';
+                updateExamples('glm-5.0');
+            }
+        }
+
+        function updateExamples(modelName) {
+            const baseUrl = window.location.origin + '/codebuddy/v1';
+            const chatUrl = baseUrl + '/chat/completions';
+
+            document.getElementById('curlExample').textContent =
+`curl -X POST "${chatUrl}" \\
+  -H "Authorization: Bearer YOUR_PASSWORD" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "${modelName}",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'`;
+
+            document.getElementById('pythonExample').textContent =
+`import openai
+
+client = openai.OpenAI(
+    api_key="YOUR_PASSWORD",
+    base_url="${baseUrl}"
+)
+
+response = client.chat.completions.create(
+    model="${modelName}",
+    messages=[
+        {"role": "user", "content": "Hello!"}
+    ]
+)
+
+print(response.choices[0].message.content)`;
+        }
+
         async function testAPI() {
             const model = document.getElementById('testModel').value;
             const message = document.getElementById('testMessage').value;
