@@ -60,11 +60,21 @@ class SecurityConfig:
         return ssl_verify
 
 # --- HTTP 客户端配置 ---
-HTTP_CLIENT_CONFIG = {
-    "verify": SecurityConfig.get_ssl_verify(),
-    "timeout": httpx.Timeout(300.0, connect=30.0, read=300.0),
-    "limits": httpx.Limits(max_keepalive_connections=20, max_connections=100)
-}
+def _build_http_client_config() -> dict:
+    """构建HTTP客户端配置，包含代理设置"""
+    config = {
+        "verify": SecurityConfig.get_ssl_verify(),
+        "timeout": httpx.Timeout(300.0, connect=30.0, read=300.0),
+        "limits": httpx.Limits(max_keepalive_connections=20, max_connections=100)
+    }
+    from config import get_proxy
+    proxy = get_proxy()
+    if proxy:
+        config["proxy"] = proxy
+        logger.info(f"HTTP客户端已配置代理: {proxy}")
+    return config
+
+HTTP_CLIENT_CONFIG = _build_http_client_config()
 
 # --- 异步安全的 HTTP 客户端池 ---
 _http_client_pool: Optional[httpx.AsyncClient] = None

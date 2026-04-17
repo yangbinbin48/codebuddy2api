@@ -37,6 +37,16 @@ def _get_auth_endpoints() -> tuple:
     return token_endpoint, state_endpoint
 
 
+def _get_proxy_config() -> dict:
+    """获取代理配置，用于临时HTTP客户端"""
+    config = {"verify": False}
+    from config import get_proxy
+    proxy = get_proxy()
+    if proxy:
+        config["proxy"] = proxy
+    return config
+
+
 def _get_host_from_url(url: str) -> str:
     """从URL中提取Host"""
     from urllib.parse import urlparse
@@ -159,7 +169,7 @@ async def start_codebuddy_auth() -> Dict[str, Any]:
         base_url = _get_base_url()
 
         # 调用 /v2/plugin/auth/state 获取认证状态和URL
-        async with httpx.AsyncClient(verify=False) as client:
+        async with httpx.AsyncClient(**_get_proxy_config()) as client:
             # 为避免上游/中间层缓存，添加随机nonce参数，确保每次请求唯一
             nonce = secrets.token_hex(8)
             state_url = f"{state_endpoint}?platform=VSCode&nonce={nonce}"
@@ -182,7 +192,7 @@ async def start_codebuddy_auth() -> Dict[str, Any]:
                                 nonce2 = secrets.token_hex(8)
                                 state_url2 = f"{state_endpoint}?platform=VSCode&nonce={nonce2}"
                                 payload2 = {"nonce": nonce2}
-                                async with httpx.AsyncClient(verify=False) as client2:
+                                async with httpx.AsyncClient(**_get_proxy_config()) as client2:
                                     response2 = await client2.post(state_url2, json=payload2, headers=headers, timeout=30)
                                 if response2.status_code == 200:
                                     result2 = response2.json()
@@ -234,7 +244,7 @@ async def poll_codebuddy_auth_status(auth_state: str) -> Dict[str, Any]:
         token_endpoint, _ = _get_auth_endpoints()
         url = f"{token_endpoint}?state={auth_state}"
         
-        async with httpx.AsyncClient(verify=False) as client:
+        async with httpx.AsyncClient(**_get_proxy_config()) as client:
             response = await client.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
