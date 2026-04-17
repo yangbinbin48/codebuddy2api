@@ -1272,19 +1272,39 @@
                     </div>
 
                     <!-- API端点卡片 -->
-                    <div class="stat-card" onclick="copyApiEndpoint()" style="cursor: pointer;" title="点击复制API端点">
+                    <div class="stat-card">
                         <div class="stat-card-header">
                             <div class="stat-card-icon warning">
                                 <i class="fas fa-link"></i>
                             </div>
-                            <div style="opacity: 0.6;">
-                                <i class="fas fa-copy"></i>
-                            </div>
                         </div>
-                        <div class="stat-value" id="apiEndpoint" style="font-size: 1.2rem; word-break: break-all;">-</div>
-                        <div class="stat-label">API 服务端点</div>
-                        <div class="stat-trend">
-                            <i class="fas fa-info-circle"></i> 点击复制链接
+                        <div class="stat-value" style="font-size: 1.1rem; margin-bottom: 8px;">API 服务端点</div>
+                        <div class="stat-label" style="margin-bottom: 10px;">点击按钮复制对应端点</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <button onclick="copyEndpoint('openai')" style="
+                                display: flex; align-items: center; justify-content: space-between;
+                                padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px;
+                                background: var(--card-bg); color: var(--text-primary); cursor: pointer;
+                                font-size: 0.8rem; transition: all 0.2s; width: 100%;
+                            " onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border-color)'">
+                                <span style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                                    <span style="background: #10a37f; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 0.7rem; white-space: nowrap;">OpenAI</span>
+                                    <span id="openaiEndpoint" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</span>
+                                </span>
+                                <i class="fas fa-copy" style="opacity: 0.5; flex-shrink: 0; margin-left: 4px;"></i>
+                            </button>
+                            <button onclick="copyEndpoint('anthropic')" style="
+                                display: flex; align-items: center; justify-content: space-between;
+                                padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px;
+                                background: var(--card-bg); color: var(--text-primary); cursor: pointer;
+                                font-size: 0.8rem; transition: all 0.2s; width: 100%;
+                            " onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border-color)'">
+                                <span style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                                    <span style="background: #d4a574; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 0.7rem; white-space: nowrap;">Anthropic</span>
+                                    <span id="anthropicEndpoint" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</span>
+                                </span>
+                                <i class="fas fa-copy" style="opacity: 0.5; flex-shrink: 0; margin-left: 4px;"></i>
+                            </button>
                         </div>
                     </div>
 
@@ -1905,8 +1925,10 @@
             }
 
             // 设置API端点
-            const apiEndpoint = window.location.origin + '/codebuddy/v1';
-            document.getElementById('apiEndpoint').textContent = apiEndpoint;
+            const openaiEndpoint = window.location.origin + '/codebuddy/v1';
+            const anthropicEndpoint = window.location.origin + '/anthropic/v1';
+            document.getElementById('openaiEndpoint').textContent = openaiEndpoint;
+            document.getElementById('anthropicEndpoint').textContent = anthropicEndpoint;
 
             // 加载使用统计
             try {
@@ -1991,23 +2013,23 @@
             showNotification('仪表板数据已刷新', 'success');
         }
 
-        function copyApiEndpoint() {
-            const apiEndpoint = document.getElementById('apiEndpoint').textContent;
-            if (apiEndpoint && apiEndpoint !== '-') {
-                navigator.clipboard.writeText(apiEndpoint).then(() => {
-                    showNotification('API端点已复制到剪贴板', 'success');
+        function copyEndpoint(type) {
+            const elementId = type === 'openai' ? 'openaiEndpoint' : 'anthropicEndpoint';
+            const endpoint = document.getElementById(elementId).textContent;
+            if (endpoint && endpoint !== '-') {
+                navigator.clipboard.writeText(endpoint).then(() => {
+                    showNotification(type.toUpperCase() + ' 端点已复制到剪贴板', 'success');
                 }).catch(() => {
-                    // 降级方案
                     const textArea = document.createElement('textarea');
-                    textArea.value = apiEndpoint;
+                    textArea.value = endpoint;
                     document.body.appendChild(textArea);
                     textArea.select();
                     document.execCommand('copy');
                     document.body.removeChild(textArea);
-                    showNotification('API端点已复制到剪贴板', 'success');
+                    showNotification(type.toUpperCase() + ' 端点已复制到剪贴板', 'success');
                 });
             } else {
-                showNotification('API端点尚未加载', 'warning');
+                showNotification('端点尚未加载', 'warning');
             }
         }
 
