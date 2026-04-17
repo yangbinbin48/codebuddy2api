@@ -30,6 +30,7 @@ _DEFAULT_CONFIG = {
     "CODEBUDDY_ROTATION_COUNT": 1,
     "CODEBUDDY_ENTERPRISE_ID": None,
     "CODEBUDDY_PROXY": None,
+    "CODEBUDDY_AUTH_TIMEOUT": 30,
 }
 
 # --- Core Functions ---
@@ -138,6 +139,9 @@ def get_enterprise_id() -> Optional[str]:
 
 def get_proxy() -> Optional[str]:
     return _get_config_value("CODEBUDDY_PROXY")
+
+def get_auth_timeout() -> int:
+    return int(_get_config_value("CODEBUDDY_AUTH_TIMEOUT"))
 
 # --- Public Setter for Hot-Reload ---
 

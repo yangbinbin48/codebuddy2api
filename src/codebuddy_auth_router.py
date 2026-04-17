@@ -38,13 +38,25 @@ def _get_auth_endpoints() -> tuple:
 
 
 def _get_proxy_config() -> dict:
-    """获取代理配置，用于临时HTTP客户端"""
+    """获取代理配置，用于临时HTTP客户端
+
+    未配置 CODEBUDDY_PROXY 时，设置 trust_env=False 忽略系统代理，直连目标
+    配置了 CODEBUDDY_PROXY 时，使用指定代理
+    """
     config = {"verify": False}
     from config import get_proxy
     proxy = get_proxy()
     if proxy:
         config["proxy"] = proxy
+    else:
+        config["trust_env"] = False
     return config
+
+
+def _get_auth_timeout() -> int:
+    """获取认证请求超时时间（秒）"""
+    from config import get_auth_timeout
+    return get_auth_timeout()
 
 
 def _get_host_from_url(url: str) -> str:
@@ -167,15 +179,22 @@ async def start_codebuddy_auth() -> Dict[str, Any]:
         headers = get_auth_start_headers()
         token_endpoint, state_endpoint = _get_auth_endpoints()
         base_url = _get_base_url()
+        auth_timeout = _get_auth_timeout()
 
         # 调用 /v2/plugin/auth/state 获取认证状态和URL
-        async with httpx.AsyncClient(**_get_proxy_config()) as client:
-            # 为避免上游/中间层缓存，添加随机nonce参数，确保每次请求唯一
-            nonce = secrets.token_hex(8)
-            state_url = f"{state_endpoint}?platform=VSCode&nonce={nonce}"
-            payload = {"nonce": nonce}
+        proxy_config = _get_proxy_config()
+        nonce = secrets.token_hex(8)
+        state_url = f"{state_endpoint}?platform=VSCode&nonce={nonce}"
+        payload = {"nonce": nonce}
 
-            response = await client.post(state_url, json=payload, headers=headers, timeout=30)
+        logger.info(f"[AUTH] 请求地址: POST {state_url}")
+        logger.info(f"[AUTH] 请求头: {headers}")
+        logger.info(f"[AUTH] 超时: {auth_timeout}s, 代理配置: {proxy_config}")
+
+        async with httpx.AsyncClient(**proxy_config) as client:
+            response = await client.post(state_url, json=payload, headers=headers, timeout=auth_timeout)
+
+            logger.info(f"[AUTH] 响应状态码: {response.status_code}")
 
             if response.status_code == 200:
                 result = response.json()
@@ -193,7 +212,7 @@ async def start_codebuddy_auth() -> Dict[str, Any]:
                                 state_url2 = f"{state_endpoint}?platform=VSCode&nonce={nonce2}"
                                 payload2 = {"nonce": nonce2}
                                 async with httpx.AsyncClient(**_get_proxy_config()) as client2:
-                                    response2 = await client2.post(state_url2, json=payload2, headers=headers, timeout=30)
+                                    response2 = await client2.post(state_url2, json=payload2, headers=headers, timeout=_get_auth_timeout())
                                 if response2.status_code == 200:
                                     result2 = response2.json()
                                     if result2.get('code') == 0 and result2.get('data'):
@@ -243,9 +262,12 @@ async def poll_codebuddy_auth_status(auth_state: str) -> Dict[str, Any]:
         headers = get_auth_poll_headers()
         token_endpoint, _ = _get_auth_endpoints()
         url = f"{token_endpoint}?state={auth_state}"
-        
+        auth_timeout = _get_auth_timeout()
+
+        logger.debug(f"[AUTH-POLL] 请求地址: GET {url}, 超时: {auth_timeout}s")
+
         async with httpx.AsyncClient(**_get_proxy_config()) as client:
-            response = await client.get(url, headers=headers, timeout=30)
+            response = await client.get(url, headers=headers, timeout=auth_timeout)
             
             if response.status_code == 200:
                 result = response.json()

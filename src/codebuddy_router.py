@@ -61,7 +61,11 @@ class SecurityConfig:
 
 # --- HTTP 客户端配置 ---
 def _build_http_client_config() -> dict:
-    """构建HTTP客户端配置，包含代理设置"""
+    """构建HTTP客户端配置，包含代理设置
+
+    未配置 CODEBUDDY_PROXY 时，设置 trust_env=False 忽略系统代理，直连目标
+    配置了 CODEBUDDY_PROXY 时，使用指定代理
+    """
     config = {
         "verify": SecurityConfig.get_ssl_verify(),
         "timeout": httpx.Timeout(300.0, connect=30.0, read=300.0),
@@ -72,6 +76,8 @@ def _build_http_client_config() -> dict:
     if proxy:
         config["proxy"] = proxy
         logger.info(f"HTTP客户端已配置代理: {proxy}")
+    else:
+        config["trust_env"] = False
     return config
 
 HTTP_CLIENT_CONFIG = _build_http_client_config()
