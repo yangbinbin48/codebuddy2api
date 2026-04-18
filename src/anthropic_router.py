@@ -6,6 +6,7 @@ Anthropic Messages API Router
 """
 import json
 import logging
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, Depends
@@ -228,3 +229,105 @@ async def _handle_non_stream(
 
     openai_response = aggregator.finalize()
     return convert_response(openai_response, model)
+
+
+@router.post("/v1/messages/count_tokens")
+async def count_tokens(
+    request: Request,
+    _token: str = Depends(authenticate_anthropic),
+):
+    """Anthropic count_tokens 端点 — 估算输入 token 数量
+
+    Claude Code 会在发送消息前调用此接口估算 token 用量。
+    优先使用 tiktoken 精确计数，不可用时回退到字符估算。
+    """
+    try:
+        try:
+            request_body = await request.json()
+        except Exception as e:
+            _anthropic_error(400, "invalid_request_error", f"Invalid JSON: {e}")
+
+        # 尝试使用 tiktoken 精确计数
+        token_count = _count_tokens_tiktoken(request_body)
+
+        return {
+            "id": f"msg_{uuid.uuid4().hex[:24]}",
+            "type": "count_tokens",
+            "input_tokens": token_count,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"count_tokens error: {e}")
+        _anthropic_error(500, "api_error", str(e))
+
+
+def _count_tokens_tiktoken(request_body: dict) -> int:
+    """使用 tiktoken 精确计数，回退到字符估算"""
+    try:
+        import tiktoken
+        enc = tiktoken.get_encoding("cl100k_base")
+        use_tiktoken = True
+    except (ImportError, Exception):
+        use_tiktoken = False
+
+    total_chars = 0
+    text_parts: list = []
+
+    # system
+    system = request_body.get("system")
+    if system:
+        if isinstance(system, str):
+            text_parts.append(system)
+            total_chars += len(system)
+        elif isinstance(system, list):
+            for block in system:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+                    total_chars += len(block.get("text", ""))
+                elif isinstance(block, str):
+                    text_parts.append(block)
+                    total_chars += len(block)
+
+    # messages
+    for msg in request_body.get("messages", []):
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            text_parts.append(content)
+            total_chars += len(content)
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    block_type = block.get("type")
+                    if block_type == "text":
+                        text_parts.append(block.get("text", ""))
+                        total_chars += len(block.get("text", ""))
+                    elif block_type == "tool_result":
+                        rc = block.get("content", "")
+                        if isinstance(rc, str):
+                            text_parts.append(rc)
+                            total_chars += len(rc)
+                        elif isinstance(rc, list):
+                            for item in rc:
+                                if isinstance(item, dict) and item.get("type") == "text":
+                                    text_parts.append(item.get("text", ""))
+                                    total_chars += len(item.get("text", ""))
+                    elif block_type == "tool_use":
+                        args_json = json.dumps(block.get("input", {}), ensure_ascii=False)
+                        text_parts.append(args_json)
+                        text_parts.append(block.get("name", ""))
+                        total_chars += len(args_json) + len(block.get("name", ""))
+
+    # tools 定义
+    for tool in request_body.get("tools", []):
+        tool_json = json.dumps(tool, ensure_ascii=False)
+        text_parts.append(tool_json)
+        total_chars += len(tool_json)
+
+    if use_tiktoken:
+        all_text = "\n".join(text_parts)
+        return len(enc.encode(all_text))
+    else:
+        # 回退: 保守估算 ~2 字符/token + 缓冲
+        return int(total_chars / 2.0) + 50

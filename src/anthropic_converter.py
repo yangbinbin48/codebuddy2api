@@ -274,7 +274,9 @@ def convert_response(openai_response: Dict[str, Any], model: str) -> Dict[str, A
         "stop_sequence": None,
         "usage": {
             "input_tokens": usage.get("prompt_tokens", 0),
-            "output_tokens": usage.get("completion_tokens", 0)
+            "output_tokens": usage.get("completion_tokens", 0),
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
         }
     }
 
@@ -296,6 +298,8 @@ class AnthropicStreamConverter:
     """有状态的流式转换器: OpenAI SSE chunks -> Anthropic SSE events
 
     跟踪 content block 索引、类型切换，生成正确的 Anthropic 流式事件序列。
+    参照 1rgs/claude-code-proxy 实现，支持 ping 事件、[DONE] 标记、
+    以及 text/tool block 切换的边界处理。
     """
 
     def __init__(self, model: str):
@@ -308,6 +312,12 @@ class AnthropicStreamConverter:
         self.had_tool_calls = False
         # CodeBuddy 的 tool call index -> 当前 block 映射
         self._tool_block_map: Dict[int, int] = {}
+        # 追踪是否已发送过文本内容（用于 text->tool 切换判断）
+        self._text_sent = False
+        # 追踪 text block 是否已关闭
+        self._text_block_closed = False
+        # 累积文本（用于延迟发送场景）
+        self._accumulated_text = ""
 
     # --- SSE 格式化 ---
 
@@ -328,9 +338,18 @@ class AnthropicStreamConverter:
                 "model": self.model,
                 "stop_reason": None,
                 "stop_sequence": None,
-                "usage": {"input_tokens": 0, "output_tokens": 0}
+                "usage": {
+                    "input_tokens": 0,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 0,
+                }
             }
         })
+
+    def _emit_ping(self) -> str:
+        """发送 ping 事件保持连接活跃（Anthropic 标准行为）"""
+        return self._sse("ping", {"type": "ping"})
 
     def _start_text_block(self) -> str:
         self.content_block_index += 1
@@ -379,10 +398,26 @@ class AnthropicStreamConverter:
         self.current_block_type = None
         return event
 
+    def _close_text_if_open(self) -> str:
+        """关闭 text block（如果它还是打开状态）"""
+        events = ""
+        if self.current_block_type == "text":
+            if self._accumulated_text and not self._text_sent:
+                events += self._text_delta(self._accumulated_text)
+                self._text_sent = True
+            events += self._stop_block()
+            self._text_block_closed = True
+        return events
+
     def _close_and_finish(self, stop_reason: str) -> str:
-        """关闭当前 block 并发送 message_delta + message_stop"""
+        """关闭当前 block 并发送 message_delta + message_stop + [DONE]"""
         events = ""
         if self.current_block_type:
+            # 如果有累积文本但还没发送，先发出去
+            if (self.current_block_type == "text"
+                    and self._accumulated_text and not self._text_sent):
+                events += self._text_delta(self._accumulated_text)
+                self._text_sent = True
             events += self._stop_block()
         events += self._sse("message_delta", {
             "type": "message_delta",
@@ -390,6 +425,7 @@ class AnthropicStreamConverter:
             "usage": {"output_tokens": 0}
         })
         events += self._sse("message_stop", {"type": "message_stop"})
+        events += "data: [DONE]\n\n"
         self.finished = True
         return events
 
@@ -405,9 +441,11 @@ class AnthropicStreamConverter:
         delta = choice.get('delta', {})
         finish_reason = choice.get('finish_reason')
 
-        # 首个 chunk: 发送 message_start
+        # 首个 chunk: 发送 message_start + content_block_start(text) + ping
         if not self.message_started:
             events += self._emit_message_start()
+            events += self._start_text_block()
+            events += self._emit_ping()
             self.message_started = True
 
         # 处理 finish_reason
@@ -419,11 +457,11 @@ class AnthropicStreamConverter:
         # 处理文本内容
         text = delta.get('content')
         if text is not None and text != "":
-            if self.current_block_type != "text":
-                if self.current_block_type is not None:
-                    events += self._stop_block()
-                events += self._start_text_block()
-            events += self._text_delta(text)
+            self._accumulated_text += text
+            # 仅在没有 tool call 进行时立即发送 text delta
+            if not self.had_tool_calls and not self._text_block_closed:
+                events += self._text_delta(text)
+                self._text_sent = True
 
         # 处理工具调用
         tool_calls = delta.get('tool_calls')
@@ -435,18 +473,26 @@ class AnthropicStreamConverter:
     def _process_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> str:
         """处理 OpenAI tool_calls delta"""
         events = ""
+
         for tc in tool_calls:
             tc_index = tc.get('index', 0)
             has_id = bool(tc.get('id'))
             has_name = bool(tc.get('function', {}).get('name'))
 
             if has_id or has_name:
-                # 新的 tool call 开始
+                # 新的 tool call 开始 — 先关闭可能打开的 text block
+                if self.current_block_type == "text" and not self._text_block_closed:
+                    # 如果累积了文本但还没发送，先发送
+                    if self._accumulated_text and not self._text_sent:
+                        events += self._text_delta(self._accumulated_text)
+                        self._text_sent = True
+                    events += self._stop_block()
+                    self._text_block_closed = True
+                elif self.current_block_type is not None:
+                    events += self._stop_block()
+
                 tool_id = tc.get('id', f"call_{uuid.uuid4().hex[:24]}")
                 tool_name = tc.get('function', {}).get('name', "")
-
-                if self.current_block_type is not None:
-                    events += self._stop_block()
 
                 events += self._start_tool_block(tool_id, tool_name)
                 self._tool_block_map[tc_index] = self.content_block_index
