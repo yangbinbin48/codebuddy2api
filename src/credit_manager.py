@@ -66,26 +66,35 @@ class CreditManager:
             if domain:
                 headers["X-Domain"] = domain
         else:
-            # 国际站：Cookie 认证 + 无 /v2 前缀
-            url = f"{api_endpoint}/billing/meter/get-user-resource"
+            # 国际站：优先 Cookie 认证，无 cookie 时回退 Bearer token
+            bearer_token = credential_data.get('bearer_token')
 
-            if not session_cookie:
-                logger.info(f"[CreditManager] Credential #{index} has no session_cookie, skip billing query")
+            if session_cookie:
+                url = f"{api_endpoint}/billing/meter/get-user-resource"
+                parsed = urlparse(api_endpoint)
+                host = parsed.hostname or api_endpoint
+                origin = f"{parsed.scheme}://{parsed.netloc}"
+                headers = {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/plain, */*",
+                    "Cookie": session_cookie,
+                    "Host": host,
+                    "Origin": origin,
+                    "Referer": f"{origin}/agents",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0",
+                }
+            elif bearer_token:
+                # 回退：使用 Bearer token 走 /v2 路径
+                url = f"{api_endpoint}/v2/billing/meter/get-user-resource"
+                logger.info(f"[CreditManager] Credential #{index} no session_cookie, fallback to Bearer token")
+                headers = {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/plain, */*",
+                    "Authorization": f"Bearer {bearer_token}",
+                }
+            else:
+                logger.info(f"[CreditManager] Credential #{index} has no session_cookie or bearer_token, skip billing query")
                 return None
-
-            parsed = urlparse(api_endpoint)
-            host = parsed.hostname or api_endpoint
-            origin = f"{parsed.scheme}://{parsed.netloc}"
-
-            headers = {
-                "Content-Type": "application/json",
-                "Accept": "application/json, text/plain, */*",
-                "Cookie": session_cookie,
-                "Host": host,
-                "Origin": origin,
-                "Referer": f"{origin}/agents",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0",
-            }
 
         try:
             client = await get_http_client()

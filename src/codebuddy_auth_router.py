@@ -275,6 +275,16 @@ async def poll_codebuddy_auth_status(auth_state: str, enterprise_id: str = None,
                 elif result.get('code') == 0 and result.get('data') and result.get('data', {}).get('accessToken'):
                     # 认证成功，获得token
                     data = result.get('data', {})
+
+                    # 提取 session cookie（billing API 需要 cookie 认证）
+                    session_cookie = None
+                    if response.cookies:
+                        cookie_parts = []
+                        for name, value in response.cookies.items():
+                            cookie_parts.append(f"{name}={value}")
+                        session_cookie = "; ".join(cookie_parts)
+                        logger.info(f"[AUTH-POLL] Got session cookie: {session_cookie[:50]}...")
+
                     return {
                         "status": "success",
                         "message": "认证成功！",
@@ -287,6 +297,7 @@ async def poll_codebuddy_auth_status(auth_state: str, enterprise_id: str = None,
                             "session_state": data.get('sessionState'),
                             "scope": data.get('scope'),
                             "domain": data.get('domain'),
+                            "session_cookie": session_cookie,
                             "full_response": result
                         }
                     }
@@ -382,6 +393,14 @@ async def save_codebuddy_token(token_data: Dict[str, Any], api_endpoint: str = '
             logger.error(f"JWT解析过程发生异常: {e}")
             user_id = token_data.get('domain', 'unknown')
         
+        # 推断站点类型
+        if enterprise_id:
+            site_type = 'enterprise'
+        elif 'codebuddy.cn' in (api_endpoint or ''):
+            site_type = 'china'
+        else:
+            site_type = 'international'
+
         # 构建完整的凭证数据
         credential_data = {
             "bearer_token": bearer_token,
@@ -393,10 +412,12 @@ async def save_codebuddy_token(token_data: Dict[str, Any], api_endpoint: str = '
             "scope": token_data.get('scope'),
             "domain": token_data.get('domain'),
             "session_state": token_data.get('session_state'),
+            "session_cookie": token_data.get('session_cookie'),
             "user_info": user_info,
             "api_endpoint": api_endpoint,
             "enterprise_id": enterprise_id,
-            "full_response": token_data  # 保存完整的原始响应
+            "site_type": site_type,
+            "full_response": token_data.get('full_response')  # 保存API原始响应（避免嵌套重复）
         }
         
         # 移除None值，保持文件整洁
@@ -438,7 +459,10 @@ async def start_device_auth(
                 return {"success": False, "error": "missing_enterprise_id", "message": "企业版认证需要提供企业标识"}
             if not api_endpoint:
                 return {"success": False, "error": "missing_api_endpoint", "message": "企业版认证需要提供API端点"}
-        else:
+        elif auth_type == "china":
+            api_endpoint = 'https://www.codebuddy.cn'
+            enterprise_id = None
+        else:  # international (默认)
             api_endpoint = 'https://www.codebuddy.ai'
             enterprise_id = None
 
