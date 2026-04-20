@@ -685,7 +685,7 @@ async def chat_completions(
     x_request_id: Optional[str] = Header(None, alias="X-Request-ID"),
     _token: str = Depends(authenticate)
 ):
-    """CodeBuddy V1 聊天完成API - 重构后的简洁版本"""
+    """CodeBuddy V1 聊天完成API - 带积分耗尽自动降级"""
     try:
         # 解析和验证请求体
         try:
@@ -693,36 +693,61 @@ async def chat_completions(
         except Exception as e:
             logger.error(f"解析请求体失败: {e}")
             raise HTTPException(status_code=400, detail=f"Invalid JSON request body: {str(e)}")
-        
+
         # 验证请求参数
         RequestProcessor.validate_request(request_body)
-        
-        # 获取有效凭证
-        credential = CredentialManager.get_valid_credential()
-        
-        # 生成请求头
-        headers = codebuddy_api_client.generate_codebuddy_headers(
-            bearer_token=credential.get('bearer_token'),
-            user_id=credential.get('user_id'),
-            conversation_id=x_conversation_id,
-            conversation_request_id=x_conversation_request_id,
-            conversation_message_id=x_conversation_message_id,
-            request_id=x_request_id
-        )
-        
-        # 预处理请求
+
+        # 预处理请求（只需做一次）
         payload = RequestProcessor.prepare_payload(request_body)
         usage_stats_manager.record_model_usage(payload.get("model", "unknown"))
-        
-        # 使用服务类处理请求
-        service = CodeBuddyStreamService()
         client_wants_stream = request_body.get("stream", False)
-        
-        if client_wants_stream:
-            return await service.handle_stream_response(payload, headers)
-        else:
-            return await service.handle_non_stream_response(payload, headers)
-                
+
+        # 获取凭证总数用于最大重试次数
+        from .credit_manager import credit_manager
+        from src.codebuddy_token_manager import codebuddy_token_manager
+        max_retries = len(codebuddy_token_manager.credentials)
+
+        for attempt in range(max_retries):
+            # 获取有效凭证
+            credential = CredentialManager.get_valid_credential()
+
+            # 生成请求头
+            headers = codebuddy_api_client.generate_codebuddy_headers(
+                bearer_token=credential.get('bearer_token'),
+                user_id=credential.get('user_id'),
+                conversation_id=x_conversation_id,
+                conversation_request_id=x_conversation_request_id,
+                conversation_message_id=x_conversation_message_id,
+                request_id=x_request_id
+            )
+
+            # 使用服务类处理请求
+            service = CodeBuddyStreamService()
+
+            try:
+                if client_wants_stream:
+                    return await service.handle_stream_response(payload, headers)
+                else:
+                    return await service.handle_non_stream_response(payload, headers)
+            except HTTPException as e:
+                # 检查是否为积分相关错误
+                error_detail = str(e.detail) if e.detail else ""
+                if e.status_code in (403, 429) and credit_manager.is_credit_related_error(e.status_code, error_detail):
+                    # 找到当前凭证索引并标记为耗尽
+                    current_index = codebuddy_token_manager.current_index
+                    credit_manager.mark_depleted(current_index)
+                    logger.warning(f"Credit exhausted for credential #{current_index}, retrying... (attempt {attempt + 1}/{max_retries})")
+
+                    if attempt < max_retries - 1:
+                        continue  # 重试下一个凭证
+                    else:
+                        raise HTTPException(
+                            status_code=503,
+                            detail="所有 CodeBuddy 账号积分已耗尽，请充值或添加新账号"
+                        )
+                else:
+                    raise  # 非积分错误，直接抛出
+
     except HTTPException:
         raise
     except Exception as e:
