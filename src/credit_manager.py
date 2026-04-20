@@ -26,15 +26,15 @@ class CreditManager:
 
     async def query_credential_credits(self, credential_data: Dict, index: int) -> Optional[Dict]:
         """查询单个凭证的积分信息"""
-        from config import get_codebuddy_api_endpoint
+        from config import get_codebuddy_api_endpoint, get_enterprise_id
         from src.codebuddy_router import get_http_client
 
         api_endpoint = get_codebuddy_api_endpoint()
-        url = f"{api_endpoint}/billing/meter/get-user-resource"
+        url = f"{api_endpoint}/v2/billing/meter/get-user-resource"
 
         bearer_token = credential_data.get('bearer_token')
         if not bearer_token:
-            logger.warning(f"[CreditManager] Credential #{index} has no bearer_token, skip")
+            logger.debug(f"[CreditManager] Credential #{index} has no bearer_token, skip")
             return None
 
         # 构建请求体
@@ -50,20 +50,33 @@ class CreditManager:
 
         headers = {
             "Content-Type": "application/json",
+            "Accept": "application/json, text/plain, */*",
             "Authorization": f"Bearer {bearer_token}"
         }
+
+        # 企业版额外请求头
+        enterprise_id = get_enterprise_id()
+        if enterprise_id:
+            headers["X-Enterprise-Id"] = enterprise_id
+            headers["X-Tenant-Id"] = enterprise_id
+        user_id = credential_data.get('user_id')
+        if user_id:
+            headers["X-User-Id"] = user_id
+        domain = credential_data.get('domain')
+        if domain:
+            headers["X-Domain"] = domain
 
         try:
             client = await get_http_client()
             response = await client.post(url, json=request_body, headers=headers, timeout=30.0)
 
             if response.status_code != 200:
-                logger.warning(f"[CreditManager] Query failed for #{index}: HTTP {response.status_code}")
+                logger.debug(f"[CreditManager] Query failed for #{index}: HTTP {response.status_code} (enterprise may not support credit API)")
                 return None
 
             data = response.json()
             if data.get("code") != 0:
-                logger.warning(f"[CreditManager] API error for #{index}: {data.get('msg')}")
+                logger.debug(f"[CreditManager] API error for #{index}: {data.get('msg')}")
                 return None
 
             accounts = data.get("data", {}).get("Response", {}).get("Data", {}).get("Accounts", [])
