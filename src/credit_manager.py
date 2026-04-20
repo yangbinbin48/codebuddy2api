@@ -6,6 +6,7 @@ import time
 import logging
 from typing import Dict, Optional, List, Any
 from datetime import datetime
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +31,7 @@ class CreditManager:
 
         api_endpoint = credential_data.get('api_endpoint', 'https://www.codebuddy.ai')
         enterprise_id = credential_data.get('enterprise_id')
-        url = f"{api_endpoint}/v2/billing/meter/get-user-resource"
-
-        bearer_token = credential_data.get('bearer_token')
-        if not bearer_token:
-            logger.debug(f"[CreditManager] Credential #{index} has no bearer_token, skip")
-            return None
+        session_cookie = credential_data.get('session_cookie')
 
         # 构建请求体
         now = datetime.now()
@@ -48,28 +44,55 @@ class CreditManager:
             "PackageEndTimeRangeEnd": "2127-01-01 00:00:00"
         }
 
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/plain, */*",
-            "Authorization": f"Bearer {bearer_token}"
-        }
-
         if enterprise_id:
-            headers["X-Enterprise-Id"] = enterprise_id
-            headers["X-Tenant-Id"] = enterprise_id
-        user_id = credential_data.get('user_id')
-        if user_id:
-            headers["X-User-Id"] = user_id
-        domain = credential_data.get('domain')
-        if domain:
-            headers["X-Domain"] = domain
+            # 企业站：Bearer token + /v2 路径 + 企业头
+            url = f"{api_endpoint}/v2/billing/meter/get-user-resource"
+            bearer_token = credential_data.get('bearer_token')
+            if not bearer_token:
+                logger.debug(f"[CreditManager] Credential #{index} has no bearer_token, skip")
+                return None
+
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/plain, */*",
+                "Authorization": f"Bearer {bearer_token}",
+                "X-Enterprise-Id": enterprise_id,
+                "X-Tenant-Id": enterprise_id,
+            }
+            user_id = credential_data.get('user_id')
+            if user_id:
+                headers["X-User-Id"] = user_id
+            domain = credential_data.get('domain')
+            if domain:
+                headers["X-Domain"] = domain
+        else:
+            # 国际站：Cookie 认证 + 无 /v2 前缀
+            url = f"{api_endpoint}/billing/meter/get-user-resource"
+
+            if not session_cookie:
+                logger.info(f"[CreditManager] Credential #{index} has no session_cookie, skip billing query")
+                return None
+
+            parsed = urlparse(api_endpoint)
+            host = parsed.hostname or api_endpoint
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/plain, */*",
+                "Cookie": session_cookie,
+                "Host": host,
+                "Origin": origin,
+                "Referer": f"{origin}/agents",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0",
+            }
 
         try:
             client = await get_http_client()
             response = await client.post(url, json=request_body, headers=headers, timeout=30.0)
 
             if response.status_code != 200:
-                logger.debug(f"[CreditManager] Query failed for #{index}: HTTP {response.status_code} (enterprise may not support credit API)")
+                logger.warning(f"[CreditManager] Query failed for #{index}: HTTP {response.status_code} - {response.text[:200]}")
                 return None
 
             data = response.json()
