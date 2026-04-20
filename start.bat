@@ -22,20 +22,12 @@ REM Install dependencies
 echo Installing dependencies...
 pip install -r requirements.txt
 
-REM Check environment variables and load from .env if exists
+REM .env file will be loaded by Python (python-dotenv) at runtime
 if not defined CODEBUDDY_PASSWORD (
     if exist ".env" (
-        echo Loading configuration from .env file...
-        for /f "tokens=1,2 delims==" %%a in (.env) do (
-            if "%%a"=="CODEBUDDY_PASSWORD" set CODEBUDDY_PASSWORD=%%b
-        )
-    )
-    if not defined CODEBUDDY_PASSWORD (
-        echo WARNING: CODEBUDDY_PASSWORD environment variable is not set
-        echo Please set it in .env file or as environment variable
-        set /p CODEBUDDY_PASSWORD="Enter password for API access: "
+        echo Configuration will be loaded from .env file by python-dotenv
     ) else (
-        echo Using password from .env file
+        echo WARNING: .env file not found, CODEBUDDY_PASSWORD may not be set
     )
 )
 
