@@ -25,6 +25,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def _periodic_credit_refresh(credit_manager, interval: int = 600):
+    """后台定时刷新积分，间隔默认 10 分钟"""
+    import asyncio
+    await asyncio.sleep(30)  # 启动后 30 秒首次刷新
+    while True:
+        try:
+            await credit_manager.refresh_all_credits()
+        except Exception as e:
+            logger.error(f"Background credit refresh failed: {e}")
+        await asyncio.sleep(interval)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
@@ -47,7 +59,20 @@ async def lifespan(app: FastAPI):
 
         # 启动时初始化资源（包含连接预热）
         await lifecycle_manager.startup()
+
+        # 启动后台积分刷新任务
+        from src.credit_manager import credit_manager
+        credit_refresh_task = asyncio.create_task(_periodic_credit_refresh(credit_manager))
+        logger.info("Background credit refresh task started")
+
         yield
+
+        # 关闭时取消后台任务
+        credit_refresh_task.cancel()
+        try:
+            await credit_refresh_task
+        except asyncio.CancelledError:
+            pass
     finally:
         # 关闭时清理资源
         await lifecycle_manager.shutdown()
