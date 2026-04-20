@@ -23,18 +23,11 @@ logger = logging.getLogger(__name__)
 _last_auth_state: Optional[str] = None
 
 
-def _get_base_url() -> str:
-    """从配置获取CodeBuddy基础URL"""
-    from config import get_codebuddy_api_endpoint
-    return get_codebuddy_api_endpoint()
-
-
-def _get_auth_endpoints() -> tuple:
-    """获取认证相关端点"""
-    base_url = _get_base_url()
-    token_endpoint = f'{base_url}/v2/plugin/auth/token'
-    state_endpoint = f'{base_url}/v2/plugin/auth/state'
-    return token_endpoint, state_endpoint
+def _get_base_url(api_endpoint: str = None) -> str:
+    """获取CodeBuddy基础URL，优先使用传入的api_endpoint"""
+    if api_endpoint:
+        return api_endpoint
+    return 'https://www.codebuddy.ai'
 
 
 def _get_proxy_config() -> dict:
@@ -100,12 +93,11 @@ def generate_auth_state() -> str:
     random_part = secrets.token_hex(16)
     return f"{random_part}_{timestamp}"
 
-def get_auth_start_headers() -> Dict[str, str]:
+def get_auth_start_headers(enterprise_id: str = None, api_endpoint: str = None) -> Dict[str, str]:
     """生成启动认证(/state)所需的请求头"""
-    from config import get_enterprise_id
     request_id = str(uuid.uuid4()).replace('-', '')
-    host = _get_host_from_url(_get_base_url())
-    enterprise_id = get_enterprise_id()
+    host = _get_host_from_url(_get_base_url(api_endpoint))
+    is_enterprise = bool(enterprise_id)
 
     headers = {
         'Host': host,
@@ -116,12 +108,12 @@ def get_auth_start_headers() -> Dict[str, str]:
         'Connection': 'close',
         'X-Requested-With': 'XMLHttpRequest',
         'X-Domain': host,
-        'User-Agent': 'VSCode/1.115.0 H3CAICODE/4.2.22590715' if enterprise_id else 'CLI/1.0.8 CodeBuddy/1.0.8',
-        'X-Product': 'Cloud-Hosted' if enterprise_id else 'SaaS',
+        'User-Agent': 'VSCode/1.115.0 H3CAICODE/4.2.22590715' if is_enterprise else 'CLI/1.0.8 CodeBuddy/1.0.8',
+        'X-Product': 'Cloud-Hosted' if is_enterprise else 'SaaS',
         'X-Request-ID': request_id,
     }
 
-    if enterprise_id:
+    if is_enterprise:
         headers['X-Enterprise-Id'] = enterprise_id
         headers['X-Tenant-Id'] = enterprise_id
         headers['X-Env-ID'] = 'production'
@@ -133,13 +125,12 @@ def get_auth_start_headers() -> Dict[str, str]:
 
     return headers
 
-def get_auth_poll_headers() -> Dict[str, str]:
+def get_auth_poll_headers(enterprise_id: str = None, api_endpoint: str = None) -> Dict[str, str]:
     """生成轮询认证(/token)所需的请求头"""
-    from config import get_enterprise_id
     request_id = str(uuid.uuid4()).replace('-', '')
     span_id = secrets.token_hex(8)
-    host = _get_host_from_url(_get_base_url())
-    enterprise_id = get_enterprise_id()
+    host = _get_host_from_url(_get_base_url(api_endpoint))
+    is_enterprise = bool(enterprise_id)
 
     headers = {
         'Host': host,
@@ -155,11 +146,11 @@ def get_auth_poll_headers() -> Dict[str, str]:
         'X-B3-SpanId': span_id,
         'X-B3-Sampled': '1',
         'X-Domain': host,
-        'User-Agent': 'VSCode/1.115.0 H3CAICODE/4.2.22590715' if enterprise_id else 'CLI/1.0.8 CodeBuddy/1.0.8',
-        'X-Product': 'Cloud-Hosted' if enterprise_id else 'SaaS',
+        'User-Agent': 'VSCode/1.115.0 H3CAICODE/4.2.22590715' if is_enterprise else 'CLI/1.0.8 CodeBuddy/1.0.8',
+        'X-Product': 'Cloud-Hosted' if is_enterprise else 'SaaS',
     }
 
-    if enterprise_id:
+    if is_enterprise:
         headers['X-Enterprise-Id'] = enterprise_id
         headers['X-Tenant-Id'] = enterprise_id
         headers['X-Env-ID'] = 'production'
@@ -171,14 +162,15 @@ def get_auth_poll_headers() -> Dict[str, str]:
 
     return headers
 
-async def start_codebuddy_auth() -> Dict[str, Any]:
+async def start_codebuddy_auth(enterprise_id: str = None, api_endpoint: str = None) -> Dict[str, Any]:
     """启动CodeBuddy认证流程"""
     try:
         logger.info("启动CodeBuddy认证流程...")
 
-        headers = get_auth_start_headers()
-        token_endpoint, state_endpoint = _get_auth_endpoints()
-        base_url = _get_base_url()
+        headers = get_auth_start_headers(enterprise_id=enterprise_id, api_endpoint=api_endpoint)
+        base_url = _get_base_url(api_endpoint)
+        token_endpoint = f'{base_url}/v2/plugin/auth/token'
+        state_endpoint = f'{base_url}/v2/plugin/auth/state'
         auth_timeout = _get_auth_timeout()
 
         # 调用 /v2/plugin/auth/state 获取认证状态和URL
@@ -256,11 +248,12 @@ async def start_codebuddy_auth() -> Dict[str, Any]:
             "message": f"认证启动失败: {str(e)}"
         }
 
-async def poll_codebuddy_auth_status(auth_state: str) -> Dict[str, Any]:
+async def poll_codebuddy_auth_status(auth_state: str, enterprise_id: str = None, api_endpoint: str = None) -> Dict[str, Any]:
     """轮询CodeBuddy认证状态"""
     try:
-        headers = get_auth_poll_headers()
-        token_endpoint, _ = _get_auth_endpoints()
+        headers = get_auth_poll_headers(enterprise_id=enterprise_id, api_endpoint=api_endpoint)
+        base_url = _get_base_url(api_endpoint)
+        token_endpoint = f'{base_url}/v2/plugin/auth/token'
         url = f"{token_endpoint}?state={auth_state}"
         auth_timeout = _get_auth_timeout()
 
@@ -319,7 +312,7 @@ async def poll_codebuddy_auth_status(auth_state: str) -> Dict[str, Any]:
             "message": f"轮询失败: {str(e)}"
         }
 
-async def save_codebuddy_token(token_data: Dict[str, Any]) -> bool:
+async def save_codebuddy_token(token_data: Dict[str, Any], api_endpoint: str = 'https://www.codebuddy.ai', enterprise_id: str = None) -> bool:
     """保存CodeBuddy token到文件"""
     try:
         from .codebuddy_token_manager import codebuddy_token_manager
@@ -401,6 +394,8 @@ async def save_codebuddy_token(token_data: Dict[str, Any]) -> bool:
             "domain": token_data.get('domain'),
             "session_state": token_data.get('session_state'),
             "user_info": user_info,
+            "api_endpoint": api_endpoint,
+            "enterprise_id": enterprise_id,
             "full_response": token_data  # 保存完整的原始响应
         }
         
@@ -429,21 +424,39 @@ async def save_codebuddy_token(token_data: Dict[str, Any]) -> bool:
 
 # --- API Endpoints ---
 @router.get("/auth/start", summary="Start CodeBuddy Authentication")
-async def start_device_auth():
+async def start_device_auth(
+    auth_type: str = "official",
+    enterprise_id: Optional[str] = None,
+    api_endpoint: Optional[str] = None
+):
     """启动CodeBuddy认证流程"""
     try:
-        logger.info("开始启动CodeBuddy认证流程...")
-        
-        # 尝试真实的CodeBuddy认证API
-        real_auth_result = await start_codebuddy_auth()
-        
+        logger.info(f"开始启动CodeBuddy认证流程... type={auth_type}")
+
+        if auth_type == "enterprise":
+            if not enterprise_id:
+                return {"success": False, "error": "missing_enterprise_id", "message": "企业版认证需要提供企业标识"}
+            if not api_endpoint:
+                return {"success": False, "error": "missing_api_endpoint", "message": "企业版认证需要提供API端点"}
+        else:
+            api_endpoint = 'https://www.codebuddy.ai'
+            enterprise_id = None
+
+        real_auth_result = await start_codebuddy_auth(
+            enterprise_id=enterprise_id,
+            api_endpoint=api_endpoint
+        )
+
         if real_auth_result.get('success'):
+            real_auth_result['auth_type'] = auth_type
+            real_auth_result['enterprise_id'] = enterprise_id
+            real_auth_result['api_endpoint'] = api_endpoint
             logger.info("真实CodeBuddy认证API启动成功!")
             return real_auth_result
         else:
             logger.warning(f"真实认证API失败: {real_auth_result}")
             return real_auth_result
-        
+
     except Exception as e:
         logger.error(f"认证启动过程发生异常: {e}")
         return {
@@ -456,7 +469,10 @@ async def start_device_auth():
 async def poll_for_token(
     device_code: str = Body(None, embed=True),
     code_verifier: str = Body(None, embed=True),
-    auth_state: str = Body(None, embed=True)
+    auth_state: str = Body(None, embed=True),
+    auth_type: str = Body(None, embed=True),
+    enterprise_id: str = Body(None, embed=True),
+    api_endpoint: str = Body(None, embed=True)
 ):
     """轮询CodeBuddy token端点"""
     from .codebuddy_token_manager import codebuddy_token_manager
@@ -464,7 +480,7 @@ async def poll_for_token(
     # 如果有auth_state，说明是真实的CodeBuddy认证流程
     if auth_state:
         logger.info(f"轮询真实CodeBuddy认证状态: {auth_state}")
-        poll_result = await poll_codebuddy_auth_status(auth_state)
+        poll_result = await poll_codebuddy_auth_status(auth_state, enterprise_id=enterprise_id, api_endpoint=api_endpoint)
         
         if poll_result.get('status') == 'success':
             # 认证成功，保存token
@@ -474,7 +490,7 @@ async def poll_for_token(
                 bearer_token = token_data.get('access_token') or token_data.get('bearer_token')
                 if bearer_token:
                     # 保存token
-                    token_saved = await save_codebuddy_token(token_data)
+                    token_saved = await save_codebuddy_token(token_data, api_endpoint=api_endpoint or 'https://www.codebuddy.ai', enterprise_id=enterprise_id)
                     return JSONResponse(content={
                         "access_token": bearer_token,
                         "token_type": token_data.get('token_type', 'Bearer'),
