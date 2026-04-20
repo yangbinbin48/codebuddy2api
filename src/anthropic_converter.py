@@ -318,6 +318,9 @@ class AnthropicStreamConverter:
         self._text_block_closed = False
         # 累积文本（用于延迟发送场景）
         self._accumulated_text = ""
+        # 从 OpenAI SSE chunk 中提取的 usage 数据
+        self._input_tokens = 0
+        self._output_tokens = 0
 
     # --- SSE 格式化 ---
 
@@ -339,7 +342,7 @@ class AnthropicStreamConverter:
                 "stop_reason": None,
                 "stop_sequence": None,
                 "usage": {
-                    "input_tokens": 0,
+                    "input_tokens": self._input_tokens,
                     "cache_creation_input_tokens": 0,
                     "cache_read_input_tokens": 0,
                     "output_tokens": 0,
@@ -422,7 +425,7 @@ class AnthropicStreamConverter:
         events += self._sse("message_delta", {
             "type": "message_delta",
             "delta": {"stop_reason": stop_reason, "stop_sequence": None},
-            "usage": {"output_tokens": 0}
+            "usage": {"output_tokens": self._output_tokens}
         })
         events += self._sse("message_stop", {"type": "message_stop"})
         events += "data: [DONE]\n\n"
@@ -433,6 +436,14 @@ class AnthropicStreamConverter:
 
     def process_chunk(self, chunk_data: Dict[str, Any]) -> str:
         """处理一个 OpenAI SSE chunk，返回 Anthropic SSE 事件字符串"""
+        # 提取 usage 数据（OpenAI 流式响应中 usage 可能在任何 chunk 中出现）
+        usage = chunk_data.get('usage')
+        if usage:
+            if usage.get('prompt_tokens'):
+                self._input_tokens = usage['prompt_tokens']
+            if usage.get('completion_tokens'):
+                self._output_tokens = usage['completion_tokens']
+
         if not chunk_data.get('choices'):
             return ""
 
