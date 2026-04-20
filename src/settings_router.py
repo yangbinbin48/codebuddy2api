@@ -19,7 +19,6 @@ SETTING_LABELS = {
     "CODEBUDDY_HOST": "服务主机地址",
     "CODEBUDDY_PORT": "服务端口",
     "CODEBUDDY_PASSWORD": "API 服务访问密码",
-    "CODEBUDDY_API_ENDPOINT": "CodeBuddy 官方API端点",
     "CODEBUDDY_CREDS_DIR": "凭证文件目录",
     "CODEBUDDY_LOG_LEVEL": "日志级别",
     "CODEBUDDY_MODELS": "可用模型列表 (逗号分隔)",

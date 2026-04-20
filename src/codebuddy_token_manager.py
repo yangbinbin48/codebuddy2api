@@ -53,6 +53,21 @@ class CodeBuddyTokenManager:
                             'data': data
                         })
                         logger.info(f"Successfully loaded credential: {os.path.basename(file_path)}")
+                        # 自动迁移：填充缺失的 api_endpoint 和 enterprise_id
+                        needs_save = False
+                        if 'api_endpoint' not in data:
+                            data['api_endpoint'] = 'https://www.codebuddy.ai'
+                            needs_save = True
+                        if 'enterprise_id' not in data:
+                            data['enterprise_id'] = None
+                            needs_save = True
+                        if needs_save:
+                            try:
+                                with open(file_path, 'w', encoding='utf-8') as wf:
+                                    json.dump(data, wf, indent=4, ensure_ascii=False)
+                                logger.info(f"Migrated credential {os.path.basename(file_path)}: added api_endpoint and enterprise_id")
+                            except Exception as write_err:
+                                logger.warning(f"Failed to write migration for {os.path.basename(file_path)}: {write_err}")
                     else:
                         logger.warning(f"Skipping invalid credential file (missing bearer_token): {os.path.basename(file_path)}")
             except Exception as e:
@@ -273,6 +288,8 @@ class CodeBuddyTokenManager:
                 'token_type': data.get('token_type', 'Bearer'),
                 'scope': data.get('scope'),
                 'domain': data.get('domain'),
+                'api_endpoint': data.get('api_endpoint', 'https://www.codebuddy.ai'),
+                'enterprise_id': data.get('enterprise_id'),
                 'has_refresh_token': bool(data.get('refresh_token')),
                 'session_state': data.get('session_state'),
                 'file_path': cred['file_path']
