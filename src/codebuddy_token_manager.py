@@ -155,14 +155,18 @@ class CodeBuddyTokenManager:
         if not self.credentials:
             return None
         
-        # 过滤掉过期的凭证
+        # 过滤掉过期和积分耗尽的凭证
+        from .credit_manager import credit_manager
         valid_credentials = []
         for i, cred in enumerate(self.credentials):
-            if not self.is_token_expired(cred['data']):
-                valid_credentials.append((i, cred))
-            else:
+            if self.is_token_expired(cred['data']):
                 filename = os.path.basename(cred['file_path'])
                 logger.warning(f"Skipping expired credential: {filename}")
+            elif credit_manager.is_depleted(i):
+                filename = os.path.basename(cred['file_path'])
+                logger.warning(f"Skipping depleted credential: {filename}")
+            else:
+                valid_credentials.append((i, cred))
         
         if not valid_credentials:
             logger.error("No valid (non-expired) credentials available")
