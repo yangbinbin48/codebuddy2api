@@ -1585,19 +1585,19 @@
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
             initializeTheme();
-            showTab('dashboard');
-            
+
             // 设置服务启动时间
             if (!sessionStorage.getItem('serviceStartTime')) {
                 sessionStorage.setItem('serviceStartTime', Date.now().toString());
             }
-            
+
             // 检查是否已经登录
-            const savedPassword = sessionStorage.getItem('servicePassword');
+            const savedPassword = localStorage.getItem('servicePassword');
             if (savedPassword) {
                 servicePassword = savedPassword;
                 isAuthenticated = true;
                 showDashboardPage();
+                showTab('dashboard');
                 loadDashboard();
             } else {
                 showLoginPage();
@@ -1759,7 +1759,12 @@
             document.getElementById(tabId).classList.add('active');
             
             // 激活对应标签
-            event.target.classList.add('active');
+            const tabMap = { dashboard: 0, credentials: 1, 'api-test': 2, settings: 3 };
+            const tabIndex = tabMap[tabId];
+            if (tabIndex !== undefined) {
+                const tabs = document.querySelectorAll('.nav-tab');
+                if (tabs[tabIndex]) tabs[tabIndex].classList.add('active');
+            }
             
             // 加载对应数据
             if (tabId === 'dashboard') {
@@ -1833,7 +1838,7 @@
                 if (testResponse.status !== 403) {
                     servicePassword = password;
                     isAuthenticated = true;
-                    sessionStorage.setItem('servicePassword', password);
+                    localStorage.setItem('servicePassword', password);
                     
                     showDashboardPage();
                     loadDashboard();
@@ -1858,7 +1863,7 @@
         function logout() {
             servicePassword = '';
             isAuthenticated = false;
-            sessionStorage.removeItem('servicePassword');
+            localStorage.removeItem('servicePassword');
             showLoginPage();
             showNotification('已退出登录', 'info');
         }
@@ -1873,6 +1878,8 @@
 
         // 仪表板相关功能
         async function loadDashboard() {
+            const el = (id) => document.getElementById(id);
+
             // 更新服务状态
             try {
                 const response = await fetch('/health');
@@ -1892,51 +1899,54 @@
 
             // 加载凭证统计
             try {
-                const credResponse = await fetch('/codebuddy/v1/credentials', { 
-                    headers: getAuthHeaders() 
+                const credResponse = await fetch('/codebuddy/v1/credentials', {
+                    headers: getAuthHeaders()
                 });
                 if (credResponse.ok) {
                     const credData = await credResponse.json();
                     const credentials = credData.credentials || [];
                     const credCount = credentials.length;
                     const validCreds = credentials.filter(c => !c.is_expired).length;
-                    
-                    document.getElementById('totalCredentials').textContent = credCount;
-                    document.getElementById('validCredentials').textContent = validCreds;
-                    
+
+                    if (el('totalCredentials')) el('totalCredentials').textContent = credCount;
+                    if (el('validCredentials')) el('validCredentials').textContent = validCreds;
+
                     // 更新凭证使用率环形图
-                    updateUsageRing('credentialRingProgress', 'credentialUsagePercent', 
+                    updateUsageRing('credentialRingProgress', 'credentialUsagePercent',
                                   validCreds, credCount, `${validCreds}/${credCount}`);
-                    
+
                     // 更新趋势指示
-                    const credTrend = document.getElementById('credentialTrend');
-                    if (validCreds === credCount) {
-                        credTrend.className = 'stat-trend positive';
-                        credTrend.innerHTML = '<i class="fas fa-check"></i> 全部有效';
-                    } else if (validCreds === 0) {
-                        credTrend.className = 'stat-trend negative';
-                        credTrend.innerHTML = '<i class="fas fa-exclamation-triangle"></i> 无有效凭证';
-                    } else {
-                        credTrend.className = 'stat-trend';
-                        credTrend.innerHTML = `<i class="fas fa-info-circle"></i> ${validCreds}个有效`;
+                    const credTrend = el('credentialTrend');
+                    if (credTrend) {
+                        if (validCreds === credCount) {
+                            credTrend.className = 'stat-trend positive';
+                            credTrend.innerHTML = '<i class="fas fa-check"></i> 全部有效';
+                        } else if (validCreds === 0) {
+                            credTrend.className = 'stat-trend negative';
+                            credTrend.innerHTML = '<i class="fas fa-exclamation-triangle"></i> 无有效凭证';
+                        } else {
+                            credTrend.className = 'stat-trend';
+                            credTrend.innerHTML = `<i class="fas fa-info-circle"></i> ${validCreds}个有效`;
+                        }
                     }
                 } else {
-                    document.getElementById('totalCredentials').textContent = 'N/A';
-                    document.getElementById('validCredentials').textContent = '0';
+                    if (el('totalCredentials')) el('totalCredentials').textContent = 'N/A';
+                    if (el('validCredentials')) el('validCredentials').textContent = '0';
                 }
 
-                    // 加载积分汇总
-                    try {
-                        const creditsResp = await fetch('/codebuddy/v1/credits', {
-                            headers: getAuthHeaders()
-                        });
-                        if (creditsResp.ok) {
-                            const creditsData = await creditsResp.json();
-                            const summary = creditsData.summary || {};
-                            const remain = summary.remain_credits ?? '?';
-                            const total = summary.total_credits ?? '?';
-                            const depleted = summary.depleted_accounts ?? 0;
-                            const trend = document.getElementById('creditsSummaryTrend');
+                // 加载积分汇总
+                try {
+                    const creditsResp = await fetch('/codebuddy/v1/credits', {
+                        headers: getAuthHeaders()
+                    });
+                    if (creditsResp.ok) {
+                        const creditsData = await creditsResp.json();
+                        const summary = creditsData.summary || {};
+                        const remain = summary.remain_credits ?? '?';
+                        const total = summary.total_credits ?? '?';
+                        const depleted = summary.depleted_accounts ?? 0;
+                        const trend = el('creditsSummaryTrend');
+                        if (trend) {
                             if (depleted > 0) {
                                 trend.className = 'stat-trend negative';
                                 trend.innerHTML = '<i class="fas fa-coins"></i> 积分: ' + remain + '/' + total + ' (' + depleted + '个耗尽)';
@@ -1945,20 +1955,21 @@
                                 trend.innerHTML = '<i class="fas fa-coins"></i> 积分: ' + remain + '/' + total;
                             }
                         }
-                    } catch (e) {
-                        console.error('Failed to load credits summary:', e);
                     }
+                } catch (e) {
+                    console.error('Failed to load credits summary:', e);
+                }
             } catch (error) {
                 console.error('Failed to load credentials count:', error);
-                document.getElementById('totalCredentials').textContent = '错误';
-                document.getElementById('validCredentials').textContent = '0';
+                if (el('totalCredentials')) el('totalCredentials').textContent = '错误';
+                if (el('validCredentials')) el('validCredentials').textContent = '0';
             }
 
             // 设置API端点
             const openaiEndpoint = window.location.origin + '/codebuddy/v1';
             const anthropicEndpoint = window.location.origin + '/anthropic';
-            document.getElementById('openaiEndpoint').textContent = openaiEndpoint;
-            document.getElementById('anthropicEndpoint').textContent = anthropicEndpoint;
+            if (el('openaiEndpoint')) el('openaiEndpoint').textContent = openaiEndpoint;
+            if (el('anthropicEndpoint')) el('anthropicEndpoint').textContent = anthropicEndpoint;
 
             // 加载使用统计
             try {
@@ -2005,14 +2016,15 @@
 
         function updateDashboardStats(statsData) {
             const { model_usage, credential_usage } = statsData;
-            
+            const el = (id) => document.getElementById(id);
+
             // 计算总API调用次数
             let totalCalls = 0;
             if (model_usage) {
                 totalCalls = Object.values(model_usage).reduce((sum, count) => sum + count, 0);
             }
-            
-            document.getElementById('totalApiCalls').textContent = totalCalls.toLocaleString();
+
+            if (el('totalApiCalls')) el('totalApiCalls').textContent = totalCalls.toLocaleString();
             
             // 更新使用率环形图（基于今日调用次数的目标）
             const dailyTarget = 1000; // 假设日目标1000次
@@ -2034,9 +2046,10 @@
 
         function refreshDashboard() {
             // 显示刷新状态
-            document.getElementById('totalCredentials').textContent = '-';
+            const el = (id) => document.getElementById(id);
+            if (el('totalCredentials')) el('totalCredentials').textContent = '-';
             updateServiceStatus('warning', '刷新中...');
-            document.getElementById('apiEndpoint').textContent = '-';
+            if (el('apiEndpoint')) el('apiEndpoint').textContent = '-';
             
             // 重新加载数据
             loadDashboard();
