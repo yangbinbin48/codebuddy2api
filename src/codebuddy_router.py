@@ -890,3 +890,39 @@ async def delete_credential(request: Request, _token: str = Depends(authenticate
     except Exception as e:
         logger.error(f"删除凭证失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- 积分管理端点 ---
+
+@router.get("/v1/credits")
+async def get_credits(_token: str = Depends(authenticate)):
+    """获取所有凭证的积分信息"""
+    try:
+        from .credit_manager import credit_manager
+        all_info = credit_manager.get_all_credits_info()
+        summary = credit_manager.get_all_credits_summary()
+        return {
+            "summary": summary,
+            "credentials": all_info
+        }
+    except Exception as e:
+        logger.error(f"获取积分信息失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/v1/credits/refresh")
+async def refresh_credits(_token: str = Depends(authenticate)):
+    """手动触发积分刷新"""
+    try:
+        from .credit_manager import credit_manager
+        await credit_manager.refresh_all_credits()
+        all_info = credit_manager.get_all_credits_info()
+        summary = credit_manager.get_all_credits_summary()
+        return {
+            "message": "积分刷新完成",
+            "summary": summary,
+            "credentials": all_info
+        }
+    except Exception as e:
+        logger.error(f"积分刷新失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
