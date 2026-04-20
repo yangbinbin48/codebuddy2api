@@ -1473,9 +1473,18 @@
                             <label class="form-label" for="enterpriseId">企业标识 <span style="color: var(--error-color);">*</span></label>
                             <div style="position: relative;">
                                 <input type="text" id="enterpriseId" class="form-input"
-                                    placeholder="如: h3c"
+                                    placeholder="如: your-company"
                                     onfocus="showEnterpriseIdHistory()" oninput="filterEnterpriseIdHistory()">
                                 <div id="enterpriseIdHistory" class="autocomplete-dropdown hidden"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="enterpriseUserAgent">User-Agent (可选)</label>
+                            <div style="position: relative;">
+                                <input type="text" id="enterpriseUserAgent" class="form-input"
+                                    placeholder="如: VSCode/1.115.0 H3CAICODE/4.2.22590715"
+                                    onfocus="showEnterpriseUserAgentHistory()" oninput="filterEnterpriseUserAgentHistory()">
+                                <div id="enterpriseUserAgentHistory" class="autocomplete-dropdown hidden"></div>
                             </div>
                         </div>
                     </div>
@@ -1598,9 +1607,18 @@
                             <label class="form-label" for="manualEnterpriseId">企业标识 <span style="color: var(--error-color);">*</span></label>
                             <div style="position: relative;">
                                 <input type="text" id="manualEnterpriseId" class="form-input"
-                                    placeholder="如: h3c"
+                                    placeholder="如: your-company"
                                     onfocus="showManualEnterpriseIdHistory()" oninput="filterManualEnterpriseIdHistory()">
                                 <div id="manualEnterpriseIdHistory" class="autocomplete-dropdown hidden"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="manualUserAgent">User-Agent (可选)</label>
+                            <div style="position: relative;">
+                                <input type="text" id="manualUserAgent" class="form-input"
+                                    placeholder="如: VSCode/1.115.0 H3CAICODE/4.2.22590715"
+                                    onfocus="showManualUserAgentHistory()" oninput="filterManualUserAgentHistory()">
+                                <div id="manualUserAgentHistory" class="autocomplete-dropdown hidden"></div>
                             </div>
                         </div>
                     </div>
@@ -1662,6 +1680,12 @@
                 <div class="card api-test">
                     <div class="card-header">
                         <h3 class="card-title">聊天完成测试</h3>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="testCredential">指定凭证</label>
+                        <select id="testCredential" class="form-input">
+                            <option value="">默认（自动轮换）</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="testModel">模型</label>
@@ -2319,6 +2343,7 @@
                     // 初始化凭证缓存
                     credentialsCache = (data.credentials || []).map(cred => ({...cred, status: 'unknown'}));
                     displayCredentials();
+                    refreshTestCredentialDropdown();
                     loadCurrentCredentialStatus(); // 加载当前状态
                     loadCreditsInfo(); // 加载积分信息
                 } else if (response.status === 403) {
@@ -2673,12 +2698,14 @@
 
             let apiEndpoint = 'https://www.codebuddy.ai';
             let enterpriseId = null;
+            let userAgent = null;
 
             if (manualType === 'china') {
                 apiEndpoint = 'https://www.codebuddy.cn';
             } else if (manualType === 'enterprise') {
                 apiEndpoint = document.getElementById('manualEndpoint').value.trim();
                 enterpriseId = document.getElementById('manualEnterpriseId').value.trim();
+                userAgent = document.getElementById('manualUserAgent').value.trim() || null;
                 if (!apiEndpoint) {
                     showNotification('企业版凭证需要提供API端点', 'error');
                     return;
@@ -2697,7 +2724,8 @@
                         bearer_token: bearerToken,
                         user_id: userId || undefined,
                         api_endpoint: apiEndpoint,
-                        enterprise_id: enterpriseId
+                        enterprise_id: enterpriseId,
+                        user_agent: userAgent
                     })
                 });
 
@@ -2709,8 +2737,12 @@
                     if (manualType === 'enterprise') {
                         document.getElementById('manualEndpoint').value = '';
                         document.getElementById('manualEnterpriseId').value = '';
+                        document.getElementById('manualUserAgent').value = '';
                         saveEnterpriseHistory('codebuddy_enterprise_endpoints', apiEndpoint);
                         saveEnterpriseHistory('codebuddy_enterprise_ids', enterpriseId);
+                        if (userAgent) {
+                            saveEnterpriseHistory('codebuddy_enterprise_user_agents', userAgent);
+                        }
                     }
                     loadCredentials();
                 } else {
@@ -2949,6 +2981,24 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)`;
         }
 
+        function refreshTestCredentialDropdown() {
+            const select = document.getElementById('testCredential');
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">默认（自动轮换）</option>';
+            if (credentialsCache && credentialsCache.length > 0) {
+                credentialsCache.forEach((cred, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    const label = cred.user_id
+                        ? `凭证 #${index + 1} (${cred.user_id})`
+                        : `凭证 #${index + 1}`;
+                    option.textContent = label;
+                    if (String(index) === currentValue) option.selected = true;
+                    select.appendChild(option);
+                });
+            }
+        }
+
         async function testAPI() {
             const model = document.getElementById('testModel').value;
             const message = document.getElementById('testMessage').value;
@@ -2963,9 +3013,15 @@ print(response.choices[0].message.content)`;
             resultDiv.innerHTML = '正在发送请求...\n';
 
             try {
+                const credentialIndex = document.getElementById('testCredential').value;
+                const headers = {
+                    ...getAuthHeaders(),
+                    ...(credentialIndex !== '' ? { 'X-Credential-Index': credentialIndex } : {})
+                };
+
                 const response = await fetch('/codebuddy/v1/chat/completions', {
                     method: 'POST',
-                    headers: getAuthHeaders(),
+                    headers: headers,
                     body: JSON.stringify({
                         model: model,
                         messages: [{ role: 'user', content: message }],
@@ -3042,6 +3098,7 @@ print(response.choices[0].message.content)`;
                 if (isEnterprise) {
                     const entId = document.getElementById('enterpriseId').value.trim();
                     const entEndpoint = document.getElementById('enterpriseEndpoint').value.trim();
+                    const entUserAgent = document.getElementById('enterpriseUserAgent').value.trim();
                     if (!entId) {
                         showNotification('企业版认证需要提供企业标识', 'error');
                         resetAuthButton();
@@ -3053,11 +3110,14 @@ print(response.choices[0].message.content)`;
                         return;
                     }
                     authUrl += `&enterprise_id=${encodeURIComponent(entId)}&api_endpoint=${encodeURIComponent(entEndpoint)}`;
+                    if (entUserAgent) {
+                        authUrl += `&user_agent=${encodeURIComponent(entUserAgent)}`;
+                    }
                 }
 
                 const response = await fetch(authUrl, { method: 'GET' });
                 const data = await response.json();
-                
+
                 // 修正：检查正确的响应字段 `verification_uri_complete`
                 if (response.ok && data.verification_uri_complete) {
                     // 保存所有必要信息以供轮询使用
@@ -3065,7 +3125,8 @@ print(response.choices[0].message.content)`;
                         auth_state: data.auth_state,
                         auth_type: authType,
                         enterprise_id: isEnterprise ? document.getElementById('enterpriseId').value.trim() : null,
-                        api_endpoint: data.api_endpoint || (isEnterprise ? document.getElementById('enterpriseEndpoint').value.trim() : null)
+                        api_endpoint: data.api_endpoint || (isEnterprise ? document.getElementById('enterpriseEndpoint').value.trim() : null),
+                        user_agent: isEnterprise ? (document.getElementById('enterpriseUserAgent').value.trim() || null) : null
                     };
 
                     // 修正：使用正确的字段来设置输入框的值，并显示该区域
@@ -3165,7 +3226,8 @@ print(response.choices[0].message.content)`;
                             auth_state: currentAuthData.auth_state,
                             auth_type: currentAuthData.auth_type || 'official',
                             enterprise_id: currentAuthData.enterprise_id || null,
-                            api_endpoint: currentAuthData.api_endpoint || null
+                            api_endpoint: currentAuthData.api_endpoint || null,
+                            user_agent: currentAuthData.user_agent || null
                         })
                     });
 
@@ -3180,6 +3242,9 @@ print(response.choices[0].message.content)`;
                         if (currentAuthData.auth_type === 'enterprise') {
                             saveEnterpriseHistory('codebuddy_enterprise_endpoints', currentAuthData.api_endpoint);
                             saveEnterpriseHistory('codebuddy_enterprise_ids', currentAuthData.enterprise_id);
+                            if (currentAuthData.user_agent) {
+                                saveEnterpriseHistory('codebuddy_enterprise_user_agents', currentAuthData.user_agent);
+                            }
                         }
                         
                         // 隐藏认证区域
@@ -3611,10 +3676,19 @@ function showManualEnterpriseIdHistory() {
     showAutocompleteDropdown('manualEnterpriseIdHistory', 'manualEnterpriseId', 'codebuddy_enterprise_ids');
 }
 function filterManualEnterpriseIdHistory() { showManualEnterpriseIdHistory(); }
+function showEnterpriseUserAgentHistory() {
+    showAutocompleteDropdown('enterpriseUserAgentHistory', 'enterpriseUserAgent', 'codebuddy_enterprise_user_agents');
+}
+function filterEnterpriseUserAgentHistory() { showEnterpriseUserAgentHistory(); }
+function showManualUserAgentHistory() {
+    showAutocompleteDropdown('manualUserAgentHistory', 'manualUserAgent', 'codebuddy_enterprise_user_agents');
+}
+function filterManualUserAgentHistory() { showManualUserAgentHistory(); }
 
 // 点击其他区域时关闭下拉列表
 document.addEventListener('click', function(e) {
-    ['enterpriseEndpointHistory', 'enterpriseIdHistory', 'manualEndpointHistory', 'manualEnterpriseIdHistory'].forEach(id => {
+    ['enterpriseEndpointHistory', 'enterpriseIdHistory', 'manualEndpointHistory', 'manualEnterpriseIdHistory',
+     'enterpriseUserAgentHistory', 'manualUserAgentHistory'].forEach(id => {
         const dropdown = document.getElementById(id);
         if (dropdown && !dropdown.contains(e.target)) {
             dropdown.classList.add('hidden');

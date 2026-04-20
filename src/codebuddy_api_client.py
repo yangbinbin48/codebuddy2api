@@ -11,6 +11,9 @@ from typing import Dict, Any, Optional, AsyncGenerator, List
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_ENTERPRISE_USER_AGENT = 'CodeBuddyIDE/4.2.22590715'
+DEFAULT_SAAS_USER_AGENT = 'CLI/1.0.7 CodeBuddy/1.0.7'
+
 
 class CodeBuddyAPIClient:
     """CodeBuddy API客户端"""
@@ -182,7 +185,8 @@ class CodeBuddyAPIClient:
         conversation_message_id: Optional[str] = None,
         request_id: Optional[str] = None,
         enterprise_id: Optional[str] = None,
-        api_endpoint: Optional[str] = None
+        api_endpoint: Optional[str] = None,
+        user_agent: Optional[str] = None
     ) -> Dict[str, str]:
         """
         生成CodeBuddy API所需的完整请求头。
@@ -207,7 +211,7 @@ class CodeBuddyAPIClient:
                 'X-IDE-Version': '1.115.0',
                 'X-Product-Version': '4.2.22590715',
                 'X-Env-ID': 'production',
-                'User-Agent': 'VSCode/1.115.0 H3CAICODE/4.2.22590715',
+                'User-Agent': user_agent or DEFAULT_ENTERPRISE_USER_AGENT,
                 'X-Request-Trace-Id': request_id or str(uuid.uuid4()).replace('-', ''),
             }
         else:
@@ -234,7 +238,7 @@ class CodeBuddyAPIClient:
                 'X-IDE-Version': '1.0.7',
                 'Authorization': f'Bearer {bearer_token}',
                 'X-Domain': host,
-                'User-Agent': 'CLI/1.0.7 CodeBuddy/1.0.7',
+                'User-Agent': DEFAULT_SAAS_USER_AGENT,
                 'X-Product': 'SaaS',
                 'X-User-Id': user_id or 'b5be3a67-237e-4ee6-9b9a-0b9ecd7b454b'
             }

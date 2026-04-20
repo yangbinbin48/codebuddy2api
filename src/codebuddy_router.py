@@ -687,6 +687,7 @@ async def chat_completions(
     x_conversation_request_id: Optional[str] = Header(None, alias="X-Conversation-Request-ID"),
     x_conversation_message_id: Optional[str] = Header(None, alias="X-Conversation-Message-ID"),
     x_request_id: Optional[str] = Header(None, alias="X-Request-ID"),
+    x_credential_index: Optional[str] = Header(None, alias="X-Credential-Index"),
     _token: str = Depends(authenticate)
 ):
     """CodeBuddy V1 聊天完成API - 带积分耗尽自动降级"""
@@ -711,8 +712,37 @@ async def chat_completions(
         from src.codebuddy_token_manager import codebuddy_token_manager
         max_retries = len(codebuddy_token_manager.credentials)
 
+        # 指定了凭证索引时，直接使用该凭证（不参与轮换和重试）
+        if x_credential_index is not None:
+            try:
+                cred_index = int(x_credential_index)
+                credential = codebuddy_token_manager.get_credential_by_index(cred_index)
+                if credential is None:
+                    raise HTTPException(status_code=400, detail=f"凭证索引 {cred_index} 无效")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="X-Credential-Index 必须是整数")
+
+            logger.info(f"使用指定凭证: 索引 {cred_index}")
+            headers = codebuddy_api_client.generate_codebuddy_headers(
+                bearer_token=credential.get('bearer_token'),
+                user_id=credential.get('user_id'),
+                conversation_id=x_conversation_id,
+                conversation_request_id=x_conversation_request_id,
+                conversation_message_id=x_conversation_message_id,
+                request_id=x_request_id,
+                enterprise_id=credential.get('enterprise_id'),
+                api_endpoint=credential.get('api_endpoint'),
+                user_agent=credential.get('user_agent')
+            )
+            service = CodeBuddyStreamService()
+            cred_api_endpoint = credential.get('api_endpoint')
+            if client_wants_stream:
+                return await service.handle_stream_response(payload, headers, api_endpoint=cred_api_endpoint)
+            else:
+                return await service.handle_non_stream_response(payload, headers, api_endpoint=cred_api_endpoint)
+
+        # 默认轮换逻辑：自动选择凭证，积分耗尽时重试下一个
         for attempt in range(max_retries):
-            # 获取有效凭证
             credential = CredentialManager.get_valid_credential()
 
             # 生成请求头
@@ -724,7 +754,8 @@ async def chat_completions(
                 conversation_message_id=x_conversation_message_id,
                 request_id=x_request_id,
                 enterprise_id=credential.get('enterprise_id'),
-                api_endpoint=credential.get('api_endpoint')
+                api_endpoint=credential.get('api_endpoint'),
+                user_agent=credential.get('user_agent')
             )
 
             # 使用服务类处理请求
@@ -827,6 +858,7 @@ async def add_credential(
 
         api_endpoint = data.get("api_endpoint", "https://www.codebuddy.ai")
         enterprise_id = data.get("enterprise_id")
+        user_agent = data.get("user_agent")
 
         credential_data = {
             "bearer_token": data.get("bearer_token"),
@@ -834,6 +866,7 @@ async def add_credential(
             "created_at": int(time.time()),
             "api_endpoint": api_endpoint,
             "enterprise_id": enterprise_id,
+            "user_agent": user_agent,
         }
         credential_data = {k: v for k, v in credential_data.items() if v is not None}
 

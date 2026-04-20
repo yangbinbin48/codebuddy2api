@@ -70,6 +70,9 @@ class CodeBuddyTokenManager:
                             else:
                                 data['site_type'] = 'international'
                             needs_save = True
+                        if 'user_agent' not in data:
+                            data['user_agent'] = None
+                            needs_save = True
                         if needs_save:
                             try:
                                 with open(file_path, 'w', encoding='utf-8') as wf:
@@ -260,6 +263,12 @@ class CodeBuddyTokenManager:
         )
         return credential['data']
     
+    def get_credential_by_index(self, index: int) -> Optional[Dict]:
+        """根据索引获取指定凭证，不影响轮换状态（用于测试指定凭证）"""
+        if index < 0 or index >= len(self.credentials):
+            return None
+        return self.credentials[index]['data']
+
     def get_all_credentials(self) -> List[Dict]:
         """获取所有凭证"""
         return [cred['data'] for cred in self.credentials]
@@ -300,6 +309,7 @@ class CodeBuddyTokenManager:
                 'api_endpoint': data.get('api_endpoint', 'https://www.codebuddy.ai'),
                 'enterprise_id': data.get('enterprise_id'),
                 'site_type': data.get('site_type', 'international'),
+                'user_agent': data.get('user_agent'),
                 'has_refresh_token': bool(data.get('refresh_token')),
                 'session_state': data.get('session_state'),
                 'file_path': cred['file_path']
