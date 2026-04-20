@@ -302,7 +302,7 @@ class AnthropicStreamConverter:
     以及 text/tool block 切换的边界处理。
     """
 
-    def __init__(self, model: str):
+    def __init__(self, model: str, estimated_input_tokens: int = 0):
         self.message_id = f"msg_{uuid.uuid4().hex[:24]}"
         self.model = model
         self.content_block_index = -1
@@ -319,7 +319,7 @@ class AnthropicStreamConverter:
         # 累积文本（用于延迟发送场景）
         self._accumulated_text = ""
         # 从 OpenAI SSE chunk 中提取的 usage 数据
-        self._input_tokens = 0
+        self._input_tokens = estimated_input_tokens
         self._output_tokens = 0
 
     # --- SSE 格式化 ---

@@ -91,10 +91,13 @@ async def messages(
         usage_stats_manager.record_model_usage(upstream_model)
 
         wants_stream = request_body.get("stream", False)
+        # 预估 input_tokens（Claude Code 用此显示上下文占用）
+        estimated_input_tokens = _estimate_input_tokens(payload)
+
         if wants_stream:
-            return await _handle_stream(payload, headers, model)
+            return await _handle_stream(payload, headers, model, estimated_input_tokens)
         else:
-            return await _handle_non_stream(payload, headers, model)
+            return await _handle_non_stream(payload, headers, model, estimated_input_tokens)
 
     except HTTPException:
         raise
@@ -107,11 +110,12 @@ async def _handle_stream(
     payload: dict,
     headers: dict,
     model: str,
+    estimated_input_tokens: int = 0,
 ) -> StreamingResponse:
     """处理流式请求: CodeBuddy SSE -> Anthropic SSE"""
 
     async def stream_generator():
-        converter = AnthropicStreamConverter(model)
+        converter = AnthropicStreamConverter(model, estimated_input_tokens)
         client = await get_http_client()
 
         try:
@@ -195,6 +199,7 @@ async def _handle_non_stream(
     payload: dict,
     headers: dict,
     model: str,
+    estimated_input_tokens: int = 0,
 ) -> dict:
     """处理非流式请求: 聚合 CodeBuddy SSE -> Anthropic Messages 响应"""
     client = await get_http_client()
@@ -330,4 +335,36 @@ def _count_tokens_tiktoken(request_body: dict) -> int:
         return len(enc.encode(all_text))
     else:
         # 回退: 保守估算 ~2 字符/token + 缓冲
+        return int(total_chars / 2.0) + 50
+
+
+def _estimate_input_tokens(payload: dict) -> int:
+    """从 OpenAI 格式 payload 中预估 input token 数"""
+    try:
+        import tiktoken
+        enc = tiktoken.get_encoding("cl100k_base")
+        use_tiktoken = True
+    except (ImportError, Exception):
+        use_tiktoken = False
+
+    text_parts = []
+    for msg in payload.get("messages", []):
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            text_parts.append(content)
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+
+    # tools
+    for tool in payload.get("tools", []):
+        text_parts.append(json.dumps(tool, ensure_ascii=False))
+
+    if use_tiktoken:
+        all_text = "\n".join(text_parts)
+        return len(enc.encode(all_text))
+    else:
+        total_chars = sum(len(t) for t in text_parts)
         return int(total_chars / 2.0) + 50
