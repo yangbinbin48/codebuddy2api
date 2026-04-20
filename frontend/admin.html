@@ -1252,6 +1252,9 @@
                         <div class="stat-trend positive" id="credentialTrend">
                             <i class="fas fa-check"></i> <span id="validCredentials">0</span> 个有效
                         </div>
+                        <div class="stat-trend" id="creditsSummaryTrend" style="margin-top: 4px; font-size: 0.75rem;">
+                            <i class="fas fa-coins"></i> 积分: <span id="creditsSummaryText">加载中...</span>
+                        </div>
                     </div>
 
                     <!-- 服务状态卡片 -->
@@ -1466,6 +1469,9 @@
                         <div>
                             <button id="rotationToggleBtn" class="btn btn-secondary" onclick="toggleAutoRotation()" style="margin-right: 0.5rem;">
                                 <i class="fas fa-ban"></i> 恢复自动轮换
+                            </button>
+                            <button class="btn btn-secondary" onclick="refreshCredits()" style="margin-right: 0.5rem;">
+                                <i class="fas fa-coins"></i> 刷新积分
                             </button>
                             <button class="btn btn-primary" onclick="loadCredentials()">
                                 <i class="fas fa-sync-alt"></i> 刷新列表
@@ -1918,6 +1924,30 @@
                     document.getElementById('totalCredentials').textContent = 'N/A';
                     document.getElementById('validCredentials').textContent = '0';
                 }
+
+                    // 加载积分汇总
+                    try {
+                        const creditsResp = await fetch('/codebuddy/v1/credits', {
+                            headers: getAuthHeaders()
+                        });
+                        if (creditsResp.ok) {
+                            const creditsData = await creditsResp.json();
+                            const summary = creditsData.summary || {};
+                            const remain = summary.remain_credits ?? '?';
+                            const total = summary.total_credits ?? '?';
+                            const depleted = summary.depleted_accounts ?? 0;
+                            const trend = document.getElementById('creditsSummaryTrend');
+                            if (depleted > 0) {
+                                trend.className = 'stat-trend negative';
+                                trend.innerHTML = '<i class="fas fa-coins"></i> 积分: ' + remain + '/' + total + ' (' + depleted + '个耗尽)';
+                            } else {
+                                trend.className = 'stat-trend positive';
+                                trend.innerHTML = '<i class="fas fa-coins"></i> 积分: ' + remain + '/' + total;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to load credits summary:', e);
+                    }
             } catch (error) {
                 console.error('Failed to load credentials count:', error);
                 document.getElementById('totalCredentials').textContent = '错误';
@@ -2033,6 +2063,71 @@
             }
         }
 
+        // --- 积分相关辅助函数 ---
+        function _creditPercent(remain, total) {
+            if (!total || total <= 0) return 0;
+            return Math.round((remain / total) * 100);
+        }
+
+        function _creditColor(remain, total) {
+            const pct = _creditPercent(remain, total);
+            if (pct > 50) return 'var(--success-color)';
+            if (pct > 20) return 'var(--warning-color)';
+            return 'var(--error-color)';
+        }
+
+        function _creditBarColor(remain, total) {
+            const pct = _creditPercent(remain, total);
+            if (pct > 50) return '#10b981';
+            if (pct > 20) return '#f59e0b';
+            return '#ef4444';
+        }
+
+        async function loadCreditsInfo() {
+            try {
+                const response = await fetch('/codebuddy/v1/credits', {
+                    headers: getAuthHeaders()
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const creditsList = data.credentials || [];
+                    creditsList.forEach(info => {
+                        if (info !== null && info !== undefined && credentialsCache[info.index]) {
+                            credentialsCache[info.index].credits_info = info;
+                        }
+                    });
+                    displayCredentials();
+                }
+            } catch (error) {
+                console.error('Failed to load credits info:', error);
+            }
+        }
+
+        async function refreshCredits() {
+            try {
+                showNotification('正在刷新积分...', 'info');
+                const response = await fetch('/codebuddy/v1/credits/refresh', {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const creditsList = data.credentials || [];
+                    creditsList.forEach(info => {
+                        if (info !== null && info !== undefined && credentialsCache[info.index]) {
+                            credentialsCache[info.index].credits_info = info;
+                        }
+                    });
+                    displayCredentials();
+                    showNotification('积分刷新完成: ' + (data.summary?.remain_credits ?? '?') + '/' + (data.summary?.total_credits ?? '?'), 'success');
+                } else {
+                    showNotification('积分刷新失败', 'error');
+                }
+            } catch (error) {
+                showNotification('积分刷新失败: ' + error.message, 'error');
+            }
+        }
+
         // 凭证管理功能
         async function loadCredentials() {
             const credentialsList = document.getElementById('credentialsList');
@@ -2049,6 +2144,7 @@
                     credentialsCache = (data.credentials || []).map(cred => ({...cred, status: 'unknown'}));
                     displayCredentials();
                     loadCurrentCredentialStatus(); // 加载当前状态
+                    loadCreditsInfo(); // 加载积分信息
                 } else if (response.status === 403) {
                     credentialsList.innerHTML = '<div class="status status-error">认证失败，请重新登录</div>';
                     logout();
@@ -2256,6 +2352,24 @@
                                         <div class="credential-meta-item">
                                             <i class="fas fa-clock"></i> 剩余: ${remainingTime}
                                         </div>
+                                        ${cred.credits_info ?
+                                            '<div class="credential-meta-item" style="flex-direction: column; gap: 4px;">' +
+                                                '<div style="display: flex; align-items: center; gap: 6px;">' +
+                                                    '<i class="fas fa-coins"></i>' +
+                                                    '积分: <strong>' + cred.credits_info.remain_credits + '</strong>/' + cred.credits_info.total_credits +
+                                                    ' <span style="font-size: 0.75rem; color: ' + _creditColor(cred.credits_info.remain_credits, cred.credits_info.total_credits) + ';">' +
+                                                        '(' + _creditPercent(cred.credits_info.remain_credits, cred.credits_info.total_credits) + '%)' +
+                                                    '</span>' +
+                                                    (cred.credits_info.is_depleted ? ' <span style="color: var(--error-color); font-weight: 600;">[已耗尽]</span>' : '') +
+                                                '</div>' +
+                                                '<div style="width: 100%; height: 4px; background: var(--border-color); border-radius: 2px; overflow: hidden;">' +
+                                                    '<div style="height: 100%; width: ' + _creditPercent(cred.credits_info.remain_credits, cred.credits_info.total_credits) + '%; background: ' + _creditBarColor(cred.credits_info.remain_credits, cred.credits_info.total_credits) + '; border-radius: 2px; transition: width 0.3s;"></div>' +
+                                                '</div>' +
+                                            '</div>' :
+                                            '<div class="credential-meta-item">' +
+                                                '<i class="fas fa-coins"></i> 积分: 查询中...' +
+                                            '</div>'
+                                        }
                                         ${cred.filename ? 
                                             `<div class="credential-meta-item">
                                                 <i class="fas fa-file"></i> ${cred.filename}
