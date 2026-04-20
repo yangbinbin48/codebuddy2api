@@ -58,7 +58,7 @@ async def messages(
     request: Request,
     _token: str = Depends(authenticate_anthropic),
 ):
-    """Anthropic Messages API 端点"""
+    """Anthropic Messages API 端点 - 带积分耗尽自动降级"""
     try:
         # 解析请求体
         try:
@@ -74,30 +74,48 @@ async def messages(
         upstream_model = _resolve_upstream_model(requested_model)
         openai_request["model"] = upstream_model
 
-        # 获取凭证
-        credential = CredentialManager.get_valid_credential()
-
-        # 生成请求头
-        headers = codebuddy_api_client.generate_codebuddy_headers(
-            bearer_token=credential.get('bearer_token'),
-            user_id=credential.get('user_id'),
-        )
-
         # 预处理载荷 (设置 stream=True, 确保 2+ 消息, 关键词替换)
         payload = RequestProcessor.prepare_payload(openai_request)
 
-        # 用请求中的模型名作为响应中的 model 字段（让 Claude Code 认为自己在用原模型）
         model = requested_model
         usage_stats_manager.record_model_usage(upstream_model)
-
         wants_stream = request_body.get("stream", False)
-        # 预估 input_tokens（Claude Code 用此显示上下文占用）
         estimated_input_tokens = _estimate_input_tokens(payload)
 
-        if wants_stream:
-            return await _handle_stream(payload, headers, model, estimated_input_tokens)
-        else:
-            return await _handle_non_stream(payload, headers, model, estimated_input_tokens)
+        # 获取凭证总数用于最大重试次数
+        from src.credit_manager import credit_manager
+        from src.codebuddy_token_manager import codebuddy_token_manager
+        max_retries = len(codebuddy_token_manager.credentials)
+
+        for attempt in range(max_retries):
+            # 获取凭证
+            credential = CredentialManager.get_valid_credential()
+
+            # 生成请求头
+            headers = codebuddy_api_client.generate_codebuddy_headers(
+                bearer_token=credential.get('bearer_token'),
+                user_id=credential.get('user_id'),
+            )
+
+            try:
+                if wants_stream:
+                    return await _handle_stream(payload, headers, model, estimated_input_tokens)
+                else:
+                    return await _handle_non_stream(payload, headers, model, estimated_input_tokens)
+            except HTTPException as e:
+                # 检查是否为积分相关错误
+                error_detail = str(e.detail) if e.detail else ""
+                if e.status_code in (403, 429) and credit_manager.is_credit_related_error(e.status_code, error_detail):
+                    current_index = codebuddy_token_manager.current_index
+                    credit_manager.mark_depleted(current_index)
+                    logger.warning(f"Credit exhausted for credential #{current_index} (anthropic), retrying...")
+
+                    if attempt < max_retries - 1:
+                        continue
+                    else:
+                        _anthropic_error(503, "api_error", "所有 CodeBuddy 账号积分已耗尽，请充值或添加新账号")
+                else:
+                    raise
 
     except HTTPException:
         raise
