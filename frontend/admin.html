@@ -1167,6 +1167,32 @@
             margin-left: 0.5rem;
             font-weight: 600;
         }
+
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 150px;
+            overflow-y: auto;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0 0 8px 8px;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .autocomplete-dropdown .autocomplete-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.15s;
+        }
+        .autocomplete-dropdown .autocomplete-item:hover {
+            background: var(--primary-alpha);
+        }
+        .autocomplete-dropdown .autocomplete-item:last-child {
+            border-radius: 0 0 8px 8px;
+        }
     </style>
 </head>
 <body>
@@ -1385,6 +1411,60 @@
                     <p style="margin-bottom: 1rem; color: var(--secondary-color);">
                         点击下方按钮自动启动CodeBuddy OAuth2认证流程，系统将自动获取并保存您的认证凭证。
                     </p>
+
+                    <!-- 认证类型选择 -->
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" style="margin-bottom: 0.5rem;">认证类型</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <label style="
+                                display: flex; align-items: center; gap: 6px;
+                                padding: 8px 16px; border: 2px solid var(--primary);
+                                border-radius: 8px; cursor: pointer; flex: 1;
+                                background: var(--primary-alpha);
+                                transition: all 0.2s;
+                            " id="authTypeOfficialLabel">
+                                <input type="radio" name="authType" value="official" checked
+                                    onchange="onAuthTypeChange('official')"
+                                    style="margin: 0;">
+                                <i class="fas fa-globe"></i> 官方版
+                            </label>
+                            <label style="
+                                display: flex; align-items: center; gap: 6px;
+                                padding: 8px 16px; border: 2px solid var(--border-color);
+                                border-radius: 8px; cursor: pointer; flex: 1;
+                                background: var(--card-bg);
+                                transition: all 0.2s;
+                            " id="authTypeEnterpriseLabel">
+                                <input type="radio" name="authType" value="enterprise"
+                                    onchange="onAuthTypeChange('enterprise')"
+                                    style="margin: 0;">
+                                <i class="fas fa-building"></i> 企业版
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 企业版额外字段 -->
+                    <div id="enterpriseAuthFields" class="hidden" style="margin-bottom: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label class="form-label" for="enterpriseEndpoint">API 端点 <span style="color: var(--error-color);">*</span></label>
+                            <div style="position: relative;">
+                                <input type="text" id="enterpriseEndpoint" class="form-input"
+                                    placeholder="https://your-enterprise.copilot.example.com"
+                                    onfocus="showEnterpriseEndpointHistory()" oninput="filterEnterpriseEndpointHistory()">
+                                <div id="enterpriseEndpointHistory" class="autocomplete-dropdown hidden"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="enterpriseId">企业标识 <span style="color: var(--error-color);">*</span></label>
+                            <div style="position: relative;">
+                                <input type="text" id="enterpriseId" class="form-input"
+                                    placeholder="如: h3c"
+                                    onfocus="showEnterpriseIdHistory()" oninput="filterEnterpriseIdHistory()">
+                                <div id="enterpriseIdHistory" class="autocomplete-dropdown hidden"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <button class="btn btn-primary" id="getAuthBtn" onclick="startAuth()">
                         <i class="fas fa-play"></i> 开始认证
                     </button>
@@ -1442,6 +1522,59 @@
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-edit"></i> 手动添加凭证</h3>
                     </div>
+                    <!-- 凭证类型选择 -->
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" style="margin-bottom: 0.5rem;">凭证类型</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <label style="
+                                display: flex; align-items: center; gap: 6px;
+                                padding: 8px 16px; border: 2px solid var(--primary);
+                                border-radius: 8px; cursor: pointer; flex: 1;
+                                background: var(--primary-alpha);
+                                transition: all 0.2s;
+                            " id="manualTypeOfficialLabel">
+                                <input type="radio" name="manualType" value="official" checked
+                                    onchange="onManualTypeChange('official')"
+                                    style="margin: 0;">
+                                <i class="fas fa-globe"></i> 官方版
+                            </label>
+                            <label style="
+                                display: flex; align-items: center; gap: 6px;
+                                padding: 8px 16px; border: 2px solid var(--border-color);
+                                border-radius: 8px; cursor: pointer; flex: 1;
+                                background: var(--card-bg);
+                                transition: all 0.2s;
+                            " id="manualTypeEnterpriseLabel">
+                                <input type="radio" name="manualType" value="enterprise"
+                                    onchange="onManualTypeChange('enterprise')"
+                                    style="margin: 0;">
+                                <i class="fas fa-building"></i> 企业版
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 手动添加 - 企业版额外字段 -->
+                    <div id="manualEnterpriseFields" class="hidden" style="margin-bottom: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label class="form-label" for="manualEndpoint">API 端点 <span style="color: var(--error-color);">*</span></label>
+                            <div style="position: relative;">
+                                <input type="text" id="manualEndpoint" class="form-input"
+                                    placeholder="https://your-enterprise.copilot.example.com"
+                                    onfocus="showManualEndpointHistory()" oninput="filterManualEndpointHistory()">
+                                <div id="manualEndpointHistory" class="autocomplete-dropdown hidden"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="manualEnterpriseId">企业标识 <span style="color: var(--error-color);">*</span></label>
+                            <div style="position: relative;">
+                                <input type="text" id="manualEnterpriseId" class="form-input"
+                                    placeholder="如: h3c"
+                                    onfocus="showManualEnterpriseIdHistory()" oninput="filterManualEnterpriseIdHistory()">
+                                <div id="manualEnterpriseIdHistory" class="autocomplete-dropdown hidden"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label class="form-label" for="bearerToken">Bearer Token <span style="color: var(--error-color);">*</span></label>
                         <textarea
@@ -2350,7 +2483,17 @@
                                 <div class="credential-avatar ${avatarClass}">${avatarText}</div>
                                 <div class="credential-info">
                                     <div class="credential-header">
-                                        <div class="credential-title">凭证 #${index + 1}</div>
+                                        <div class="credential-title">凭证 #${index + 1}
+                                            <span style="
+                                                display: inline-block; margin-left: 6px;
+                                                padding: 1px 6px; border-radius: 4px;
+                                                font-size: 0.7rem; font-weight: 600;
+                                                ${cred.enterprise_id
+                                                    ? 'background: rgba(255, 152, 0, 0.15); color: #ff9800;'
+                                                    : 'background: rgba(76, 175, 80, 0.15); color: #4caf50;'
+                                                }
+                                            ">${cred.enterprise_id ? '企业: ' + cred.enterprise_id : '官方'}</span>
+                                        </div>
                                         ${selectedBadge}
                                     </div>
                                     <div class="credential-meta">
@@ -2487,10 +2630,27 @@
         async function addCredential() {
             const bearerToken = document.getElementById('bearerToken').value.trim();
             const userId = document.getElementById('userId').value.trim();
+            const manualType = document.querySelector('input[name="manualType"]:checked').value;
 
             if (!bearerToken) {
                 showNotification('请输入 Bearer Token', 'error');
                 return;
+            }
+
+            let apiEndpoint = 'https://www.codebuddy.ai';
+            let enterpriseId = null;
+
+            if (manualType === 'enterprise') {
+                apiEndpoint = document.getElementById('manualEndpoint').value.trim();
+                enterpriseId = document.getElementById('manualEnterpriseId').value.trim();
+                if (!apiEndpoint) {
+                    showNotification('企业版凭证需要提供API端点', 'error');
+                    return;
+                }
+                if (!enterpriseId) {
+                    showNotification('企业版凭证需要提供企业标识', 'error');
+                    return;
+                }
             }
 
             try {
@@ -2499,7 +2659,9 @@
                     headers: getAuthHeaders(),
                     body: JSON.stringify({
                         bearer_token: bearerToken,
-                        user_id: userId || undefined
+                        user_id: userId || undefined,
+                        api_endpoint: apiEndpoint,
+                        enterprise_id: enterpriseId
                     })
                 });
 
@@ -2508,6 +2670,12 @@
                     showNotification('凭证添加成功！', 'success');
                     document.getElementById('bearerToken').value = '';
                     document.getElementById('userId').value = '';
+                    if (manualType === 'enterprise') {
+                        document.getElementById('manualEndpoint').value = '';
+                        document.getElementById('manualEnterpriseId').value = '';
+                        saveEnterpriseHistory('codebuddy_enterprise_endpoints', apiEndpoint);
+                        saveEnterpriseHistory('codebuddy_enterprise_ids', enterpriseId);
+                    }
                     loadCredentials();
                 } else {
                     const errorData = await response.json();
@@ -2831,14 +2999,36 @@ print(response.choices[0].message.content)`;
             }
             
             try {
-                const response = await fetch('/codebuddy/auth/start', { method: 'GET' });
+                const authType = document.querySelector('input[name="authType"]:checked').value;
+                let authUrl = `/codebuddy/auth/start?auth_type=${authType}`;
+
+                if (authType === 'enterprise') {
+                    const entId = document.getElementById('enterpriseId').value.trim();
+                    const entEndpoint = document.getElementById('enterpriseEndpoint').value.trim();
+                    if (!entId) {
+                        showNotification('企业版认证需要提供企业标识', 'error');
+                        resetAuthButton();
+                        return;
+                    }
+                    if (!entEndpoint) {
+                        showNotification('企业版认证需要提供API端点', 'error');
+                        resetAuthButton();
+                        return;
+                    }
+                    authUrl += `&enterprise_id=${encodeURIComponent(entId)}&api_endpoint=${encodeURIComponent(entEndpoint)}`;
+                }
+
+                const response = await fetch(authUrl, { method: 'GET' });
                 const data = await response.json();
                 
                 // 修正：检查正确的响应字段 `verification_uri_complete`
                 if (response.ok && data.verification_uri_complete) {
                     // 保存所有必要信息以供轮询使用
                     currentAuthData = {
-                        auth_state: data.auth_state
+                        auth_state: data.auth_state,
+                        auth_type: authType,
+                        enterprise_id: authType === 'enterprise' ? document.getElementById('enterpriseId').value.trim() : null,
+                        api_endpoint: authType === 'enterprise' ? document.getElementById('enterpriseEndpoint').value.trim() : null
                     };
 
                     // 修正：使用正确的字段来设置输入框的值，并显示该区域
@@ -2935,7 +3125,10 @@ print(response.choices[0].message.content)`;
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            auth_state: currentAuthData.auth_state // 修正：发送auth_state
+                            auth_state: currentAuthData.auth_state,
+                            auth_type: currentAuthData.auth_type || 'official',
+                            enterprise_id: currentAuthData.enterprise_id || null,
+                            api_endpoint: currentAuthData.api_endpoint || null
                         })
                     });
 
@@ -2945,6 +3138,12 @@ print(response.choices[0].message.content)`;
                         // 认证成功
                         stopPolling();
                         showNotification('🎉 认证成功！Token已自动保存', 'success');
+
+                        // 保存企业历史记录到 localStorage
+                        if (currentAuthData.auth_type === 'enterprise') {
+                            saveEnterpriseHistory('codebuddy_enterprise_endpoints', currentAuthData.api_endpoint);
+                            saveEnterpriseHistory('codebuddy_enterprise_ids', currentAuthData.enterprise_id);
+                        }
                         
                         // 隐藏认证区域
                         document.getElementById('authUrlSection').style.display = 'none';
@@ -3262,6 +3461,119 @@ print(response.choices[0].message.content)`;
                credentialTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center;">暂无凭证使用数据</td></tr>';
            }
        }
+
+// === 认证类型切换 ===
+function onAuthTypeChange(type) {
+    const officialLabel = document.getElementById('authTypeOfficialLabel');
+    const enterpriseLabel = document.getElementById('authTypeEnterpriseLabel');
+    const enterpriseFields = document.getElementById('enterpriseAuthFields');
+
+    if (type === 'enterprise') {
+        officialLabel.style.borderColor = 'var(--border-color)';
+        officialLabel.style.background = 'var(--card-bg)';
+        enterpriseLabel.style.borderColor = 'var(--primary)';
+        enterpriseLabel.style.background = 'var(--primary-alpha)';
+        enterpriseFields.classList.remove('hidden');
+    } else {
+        officialLabel.style.borderColor = 'var(--primary)';
+        officialLabel.style.background = 'var(--primary-alpha)';
+        enterpriseLabel.style.borderColor = 'var(--border-color)';
+        enterpriseLabel.style.background = 'var(--card-bg)';
+        enterpriseFields.classList.add('hidden');
+    }
+}
+
+// === 手动添加类型切换 ===
+function onManualTypeChange(type) {
+    const officialLabel = document.getElementById('manualTypeOfficialLabel');
+    const enterpriseLabel = document.getElementById('manualTypeEnterpriseLabel');
+    const enterpriseFields = document.getElementById('manualEnterpriseFields');
+
+    if (type === 'enterprise') {
+        officialLabel.style.borderColor = 'var(--border-color)';
+        officialLabel.style.background = 'var(--card-bg)';
+        enterpriseLabel.style.borderColor = 'var(--primary)';
+        enterpriseLabel.style.background = 'var(--primary-alpha)';
+        enterpriseFields.classList.remove('hidden');
+    } else {
+        officialLabel.style.borderColor = 'var(--primary)';
+        officialLabel.style.background = 'var(--primary-alpha)';
+        enterpriseLabel.style.borderColor = 'var(--border-color)';
+        enterpriseLabel.style.background = 'var(--card-bg)';
+        enterpriseFields.classList.add('hidden');
+    }
+}
+
+// === 企业历史记录管理 ===
+function getEnterpriseHistory(key) {
+    try {
+        return JSON.parse(localStorage.getItem(key) || '[]');
+    } catch { return []; }
+}
+
+function saveEnterpriseHistory(key, value) {
+    let history = getEnterpriseHistory(key);
+    history = history.filter(item => item !== value);
+    history.unshift(value);
+    if (history.length > 10) history = history.slice(0, 10);
+    localStorage.setItem(key, JSON.stringify(history));
+}
+
+function showAutocompleteDropdown(dropdownId, inputId, historyKey) {
+    const dropdown = document.getElementById(dropdownId);
+    const input = document.getElementById(inputId);
+    const history = getEnterpriseHistory(historyKey);
+    const filter = input.value.toLowerCase();
+
+    if (history.length === 0) {
+        dropdown.classList.add('hidden');
+        return;
+    }
+
+    const filtered = filter ? history.filter(item => item.toLowerCase().includes(filter)) : history;
+
+    if (filtered.length === 0) {
+        dropdown.classList.add('hidden');
+        return;
+    }
+
+    dropdown.innerHTML = filtered.map(item =>
+        `<div class="autocomplete-item" onclick="selectAutocompleteItem('${inputId}', '${dropdownId}', '${item.replace(/'/g, "\\'")}')">${item}</div>`
+    ).join('');
+    dropdown.classList.remove('hidden');
+}
+
+function selectAutocompleteItem(inputId, dropdownId, value) {
+    document.getElementById(inputId).value = value;
+    document.getElementById(dropdownId).classList.add('hidden');
+}
+
+function showEnterpriseEndpointHistory() {
+    showAutocompleteDropdown('enterpriseEndpointHistory', 'enterpriseEndpoint', 'codebuddy_enterprise_endpoints');
+}
+function filterEnterpriseEndpointHistory() { showEnterpriseEndpointHistory(); }
+function showEnterpriseIdHistory() {
+    showAutocompleteDropdown('enterpriseIdHistory', 'enterpriseId', 'codebuddy_enterprise_ids');
+}
+function filterEnterpriseIdHistory() { showEnterpriseIdHistory(); }
+function showManualEndpointHistory() {
+    showAutocompleteDropdown('manualEndpointHistory', 'manualEndpoint', 'codebuddy_enterprise_endpoints');
+}
+function filterManualEndpointHistory() { showManualEndpointHistory(); }
+function showManualEnterpriseIdHistory() {
+    showAutocompleteDropdown('manualEnterpriseIdHistory', 'manualEnterpriseId', 'codebuddy_enterprise_ids');
+}
+function filterManualEnterpriseIdHistory() { showManualEnterpriseIdHistory(); }
+
+// 点击其他区域时关闭下拉列表
+document.addEventListener('click', function(e) {
+    ['enterpriseEndpointHistory', 'enterpriseIdHistory', 'manualEndpointHistory', 'manualEnterpriseIdHistory'].forEach(id => {
+        const dropdown = document.getElementById(id);
+        if (dropdown && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+});
     </script>
 </body>
 </html>
