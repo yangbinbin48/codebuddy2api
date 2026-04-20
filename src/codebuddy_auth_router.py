@@ -264,7 +264,7 @@ async def poll_codebuddy_auth_status(auth_state: str, enterprise_id: str = None,
             
             if response.status_code == 200:
                 result = response.json()
-                
+
                 if result.get('code') == 11217:
                     # 仍在等待登录
                     return {

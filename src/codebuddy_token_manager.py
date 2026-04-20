@@ -53,7 +53,7 @@ class CodeBuddyTokenManager:
                             'data': data
                         })
                         logger.info(f"Successfully loaded credential: {os.path.basename(file_path)}")
-                        # 自动迁移：填充缺失的 api_endpoint 和 enterprise_id
+                        # 自动迁移：填充缺失的 api_endpoint、enterprise_id、site_type
                         needs_save = False
                         if 'api_endpoint' not in data:
                             data['api_endpoint'] = 'https://www.codebuddy.ai'
@@ -61,11 +61,20 @@ class CodeBuddyTokenManager:
                         if 'enterprise_id' not in data:
                             data['enterprise_id'] = None
                             needs_save = True
+                        if 'site_type' not in data:
+                            ep = data.get('api_endpoint', '')
+                            if data.get('enterprise_id'):
+                                data['site_type'] = 'enterprise'
+                            elif 'codebuddy.cn' in ep:
+                                data['site_type'] = 'china'
+                            else:
+                                data['site_type'] = 'international'
+                            needs_save = True
                         if needs_save:
                             try:
                                 with open(file_path, 'w', encoding='utf-8') as wf:
                                     json.dump(data, wf, indent=4, ensure_ascii=False)
-                                logger.info(f"Migrated credential {os.path.basename(file_path)}: added api_endpoint and enterprise_id")
+                                logger.info(f"Migrated credential {os.path.basename(file_path)}: added missing fields")
                             except Exception as write_err:
                                 logger.warning(f"Failed to write migration for {os.path.basename(file_path)}: {write_err}")
                     else:
@@ -290,6 +299,7 @@ class CodeBuddyTokenManager:
                 'domain': data.get('domain'),
                 'api_endpoint': data.get('api_endpoint', 'https://www.codebuddy.ai'),
                 'enterprise_id': data.get('enterprise_id'),
+                'site_type': data.get('site_type', 'international'),
                 'has_refresh_token': bool(data.get('refresh_token')),
                 'session_state': data.get('session_state'),
                 'file_path': cred['file_path']

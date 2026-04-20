@@ -1418,22 +1418,37 @@
                         <div style="display: flex; gap: 0.5rem;">
                             <label style="
                                 display: flex; align-items: center; gap: 6px;
-                                padding: 8px 16px; border: 2px solid var(--primary);
+                                padding: 8px 12px; border: 2px solid var(--primary);
                                 border-radius: 8px; cursor: pointer; flex: 1;
                                 background: var(--primary-alpha);
                                 transition: all 0.2s;
-                            " id="authTypeOfficialLabel">
-                                <input type="radio" name="authType" value="official" checked
-                                    onchange="onAuthTypeChange('official')"
+                                justify-content: center;
+                            " id="authTypeInternationalLabel">
+                                <input type="radio" name="authType" value="international" checked
+                                    onchange="onAuthTypeChange('international')"
                                     style="margin: 0;">
-                                <i class="fas fa-globe"></i> 官方版
+                                <i class="fas fa-globe"></i> 国际站
                             </label>
                             <label style="
                                 display: flex; align-items: center; gap: 6px;
-                                padding: 8px 16px; border: 2px solid var(--border-color);
+                                padding: 8px 12px; border: 2px solid var(--border-color);
                                 border-radius: 8px; cursor: pointer; flex: 1;
                                 background: var(--card-bg);
                                 transition: all 0.2s;
+                                justify-content: center;
+                            " id="authTypeChinaLabel">
+                                <input type="radio" name="authType" value="china"
+                                    onchange="onAuthTypeChange('china')"
+                                    style="margin: 0;">
+                                <i class="fas fa-flag"></i> 中国站
+                            </label>
+                            <label style="
+                                display: flex; align-items: center; gap: 6px;
+                                padding: 8px 12px; border: 2px solid var(--border-color);
+                                border-radius: 8px; cursor: pointer; flex: 1;
+                                background: var(--card-bg);
+                                transition: all 0.2s;
+                                justify-content: center;
                             " id="authTypeEnterpriseLabel">
                                 <input type="radio" name="authType" value="enterprise"
                                     onchange="onAuthTypeChange('enterprise')"
@@ -1528,22 +1543,37 @@
                         <div style="display: flex; gap: 0.5rem;">
                             <label style="
                                 display: flex; align-items: center; gap: 6px;
-                                padding: 8px 16px; border: 2px solid var(--primary);
+                                padding: 8px 12px; border: 2px solid var(--primary);
                                 border-radius: 8px; cursor: pointer; flex: 1;
                                 background: var(--primary-alpha);
                                 transition: all 0.2s;
-                            " id="manualTypeOfficialLabel">
-                                <input type="radio" name="manualType" value="official" checked
-                                    onchange="onManualTypeChange('official')"
+                                justify-content: center;
+                            " id="manualTypeInternationalLabel">
+                                <input type="radio" name="manualType" value="international" checked
+                                    onchange="onManualTypeChange('international')"
                                     style="margin: 0;">
-                                <i class="fas fa-globe"></i> 官方版
+                                <i class="fas fa-globe"></i> 国际站
                             </label>
                             <label style="
                                 display: flex; align-items: center; gap: 6px;
-                                padding: 8px 16px; border: 2px solid var(--border-color);
+                                padding: 8px 12px; border: 2px solid var(--border-color);
                                 border-radius: 8px; cursor: pointer; flex: 1;
                                 background: var(--card-bg);
                                 transition: all 0.2s;
+                                justify-content: center;
+                            " id="manualTypeChinaLabel">
+                                <input type="radio" name="manualType" value="china"
+                                    onchange="onManualTypeChange('china')"
+                                    style="margin: 0;">
+                                <i class="fas fa-flag"></i> 中国站
+                            </label>
+                            <label style="
+                                display: flex; align-items: center; gap: 6px;
+                                padding: 8px 12px; border: 2px solid var(--border-color);
+                                border-radius: 8px; cursor: pointer; flex: 1;
+                                background: var(--card-bg);
+                                transition: all 0.2s;
+                                justify-content: center;
                             " id="manualTypeEnterpriseLabel">
                                 <input type="radio" name="manualType" value="enterprise"
                                     onchange="onManualTypeChange('enterprise')"
@@ -2488,11 +2518,13 @@
                                                 display: inline-block; margin-left: 6px;
                                                 padding: 1px 6px; border-radius: 4px;
                                                 font-size: 0.7rem; font-weight: 600;
-                                                ${cred.enterprise_id
+                                                ${cred.site_type === 'enterprise'
                                                     ? 'background: rgba(255, 152, 0, 0.15); color: #ff9800;'
-                                                    : 'background: rgba(76, 175, 80, 0.15); color: #4caf50;'
+                                                    : cred.site_type === 'china'
+                                                        ? 'background: rgba(33, 150, 243, 0.15); color: #2196f3;'
+                                                        : 'background: rgba(76, 175, 80, 0.15); color: #4caf50;'
                                                 }
-                                            ">${cred.enterprise_id ? '企业: ' + cred.enterprise_id : '官方'}</span>
+                                            ">${cred.site_type === 'enterprise' ? '企业: ' + (cred.enterprise_id || '') : cred.site_type === 'china' ? '中国站' : '国际站'}</span>
                                         </div>
                                         ${selectedBadge}
                                     </div>
@@ -2508,7 +2540,9 @@
                                         <div class="credential-meta-item">
                                             <i class="fas fa-clock"></i> 剩余: ${remainingTime}
                                         </div>
-                                        ${cred.credits_info ?
+                                        ${cred.site_type === 'enterprise' ?
+                                            '<div class="credential-meta-item"><i class="fas fa-coins"></i> 积分: 企业版不支持</div>' :
+                                            cred.credits_info ?
                                             '<div class="credential-meta-item" style="flex-direction: column; gap: 4px;">' +
                                                 '<div style="display: flex; align-items: center; gap: 6px;">' +
                                                     '<i class="fas fa-coins"></i>' +
@@ -2640,7 +2674,9 @@
             let apiEndpoint = 'https://www.codebuddy.ai';
             let enterpriseId = null;
 
-            if (manualType === 'enterprise') {
+            if (manualType === 'china') {
+                apiEndpoint = 'https://www.codebuddy.cn';
+            } else if (manualType === 'enterprise') {
                 apiEndpoint = document.getElementById('manualEndpoint').value.trim();
                 enterpriseId = document.getElementById('manualEnterpriseId').value.trim();
                 if (!apiEndpoint) {
@@ -3001,8 +3037,9 @@ print(response.choices[0].message.content)`;
             try {
                 const authType = document.querySelector('input[name="authType"]:checked').value;
                 let authUrl = `/codebuddy/auth/start?auth_type=${authType}`;
+                const isEnterprise = authType === 'enterprise';
 
-                if (authType === 'enterprise') {
+                if (isEnterprise) {
                     const entId = document.getElementById('enterpriseId').value.trim();
                     const entEndpoint = document.getElementById('enterpriseEndpoint').value.trim();
                     if (!entId) {
@@ -3027,8 +3064,8 @@ print(response.choices[0].message.content)`;
                     currentAuthData = {
                         auth_state: data.auth_state,
                         auth_type: authType,
-                        enterprise_id: authType === 'enterprise' ? document.getElementById('enterpriseId').value.trim() : null,
-                        api_endpoint: authType === 'enterprise' ? document.getElementById('enterpriseEndpoint').value.trim() : null
+                        enterprise_id: isEnterprise ? document.getElementById('enterpriseId').value.trim() : null,
+                        api_endpoint: data.api_endpoint || (isEnterprise ? document.getElementById('enterpriseEndpoint').value.trim() : null)
                     };
 
                     // 修正：使用正确的字段来设置输入框的值，并显示该区域
@@ -3464,42 +3501,52 @@ print(response.choices[0].message.content)`;
 
 // === 认证类型切换 ===
 function onAuthTypeChange(type) {
-    const officialLabel = document.getElementById('authTypeOfficialLabel');
-    const enterpriseLabel = document.getElementById('authTypeEnterpriseLabel');
+    const labels = {
+        international: document.getElementById('authTypeInternationalLabel'),
+        china: document.getElementById('authTypeChinaLabel'),
+        enterprise: document.getElementById('authTypeEnterpriseLabel')
+    };
     const enterpriseFields = document.getElementById('enterpriseAuthFields');
 
+    Object.keys(labels).forEach(key => {
+        if (key === type) {
+            labels[key].style.borderColor = 'var(--primary)';
+            labels[key].style.background = 'var(--primary-alpha)';
+        } else {
+            labels[key].style.borderColor = 'var(--border-color)';
+            labels[key].style.background = 'var(--card-bg)';
+        }
+    });
+
     if (type === 'enterprise') {
-        officialLabel.style.borderColor = 'var(--border-color)';
-        officialLabel.style.background = 'var(--card-bg)';
-        enterpriseLabel.style.borderColor = 'var(--primary)';
-        enterpriseLabel.style.background = 'var(--primary-alpha)';
         enterpriseFields.classList.remove('hidden');
     } else {
-        officialLabel.style.borderColor = 'var(--primary)';
-        officialLabel.style.background = 'var(--primary-alpha)';
-        enterpriseLabel.style.borderColor = 'var(--border-color)';
-        enterpriseLabel.style.background = 'var(--card-bg)';
         enterpriseFields.classList.add('hidden');
     }
 }
 
 // === 手动添加类型切换 ===
 function onManualTypeChange(type) {
-    const officialLabel = document.getElementById('manualTypeOfficialLabel');
-    const enterpriseLabel = document.getElementById('manualTypeEnterpriseLabel');
+    const labels = {
+        international: document.getElementById('manualTypeInternationalLabel'),
+        china: document.getElementById('manualTypeChinaLabel'),
+        enterprise: document.getElementById('manualTypeEnterpriseLabel')
+    };
     const enterpriseFields = document.getElementById('manualEnterpriseFields');
 
+    Object.keys(labels).forEach(key => {
+        if (key === type) {
+            labels[key].style.borderColor = 'var(--primary)';
+            labels[key].style.background = 'var(--primary-alpha)';
+        } else {
+            labels[key].style.borderColor = 'var(--border-color)';
+            labels[key].style.background = 'var(--card-bg)';
+        }
+    });
+
     if (type === 'enterprise') {
-        officialLabel.style.borderColor = 'var(--border-color)';
-        officialLabel.style.background = 'var(--card-bg)';
-        enterpriseLabel.style.borderColor = 'var(--primary)';
-        enterpriseLabel.style.background = 'var(--primary-alpha)';
         enterpriseFields.classList.remove('hidden');
     } else {
-        officialLabel.style.borderColor = 'var(--primary)';
-        officialLabel.style.background = 'var(--primary-alpha)';
-        enterpriseLabel.style.borderColor = 'var(--border-color)';
-        enterpriseLabel.style.background = 'var(--card-bg)';
         enterpriseFields.classList.add('hidden');
     }
 }
