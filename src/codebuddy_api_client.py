@@ -16,8 +16,7 @@ class CodeBuddyAPIClient:
     """CodeBuddy API客户端"""
 
     def __init__(self):
-        from config import get_codebuddy_api_endpoint
-        self.base_url = get_codebuddy_api_endpoint()
+        self.base_url = 'https://www.codebuddy.ai'
         self.api_endpoint = self.base_url  # 直接使用base_url，不需要plugin前缀
         self._host = self._extract_host(self.base_url)
 
@@ -181,28 +180,28 @@ class CodeBuddyAPIClient:
         conversation_id: Optional[str] = None,
         conversation_request_id: Optional[str] = None,
         conversation_message_id: Optional[str] = None,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
+        enterprise_id: Optional[str] = None,
+        api_endpoint: Optional[str] = None
     ) -> Dict[str, str]:
         """
         生成CodeBuddy API所需的完整请求头。
         自动检测企业版模式并使用对应的请求头。
         """
-        from config import get_enterprise_id
-
-        enterprise_id = get_enterprise_id()
+        host = self._extract_host(api_endpoint) if api_endpoint else self._host
         is_enterprise = bool(enterprise_id)
 
         if is_enterprise:
             # 企业版请求头
             headers = {
-                'Host': self._host,
+                'Host': host,
                 'Accept': 'application/json',
                 'Content-Type': 'application/json;charset=UTF-8',
                 'Authorization': f'Bearer {bearer_token}',
                 'X-User-Id': user_id or '',
                 'X-Enterprise-Id': enterprise_id,
                 'X-Tenant-Id': enterprise_id,
-                'X-Domain': self._host,
+                'X-Domain': host,
                 'X-Product': 'Cloud-Hosted',
                 'X-IDE-Type': 'VSCode',
                 'X-IDE-Version': '1.115.0',
@@ -214,7 +213,7 @@ class CodeBuddyAPIClient:
         else:
             # SaaS 版请求头
             headers = {
-                'Host': self._host,
+                'Host': host,
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -234,7 +233,7 @@ class CodeBuddyAPIClient:
                 'X-IDE-Name': 'CLI',
                 'X-IDE-Version': '1.0.7',
                 'Authorization': f'Bearer {bearer_token}',
-                'X-Domain': self._host,
+                'X-Domain': host,
                 'User-Agent': 'CLI/1.0.7 CodeBuddy/1.0.7',
                 'X-Product': 'SaaS',
                 'X-User-Id': user_id or 'b5be3a67-237e-4ee6-9b9a-0b9ecd7b454b'

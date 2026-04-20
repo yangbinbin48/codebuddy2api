@@ -95,13 +95,16 @@ async def messages(
             headers = codebuddy_api_client.generate_codebuddy_headers(
                 bearer_token=credential.get('bearer_token'),
                 user_id=credential.get('user_id'),
+                enterprise_id=credential.get('enterprise_id'),
+                api_endpoint=credential.get('api_endpoint')
             )
 
             try:
+                cred_api_endpoint = credential.get('api_endpoint')
                 if wants_stream:
-                    return await _handle_stream(payload, headers, model, estimated_input_tokens)
+                    return await _handle_stream(payload, headers, model, estimated_input_tokens, api_endpoint=cred_api_endpoint)
                 else:
-                    return await _handle_non_stream(payload, headers, model, estimated_input_tokens)
+                    return await _handle_non_stream(payload, headers, model, estimated_input_tokens, api_endpoint=cred_api_endpoint)
             except HTTPException as e:
                 # 检查是否为积分相关错误
                 error_detail = str(e.detail) if e.detail else ""
@@ -129,6 +132,7 @@ async def _handle_stream(
     headers: dict,
     model: str,
     estimated_input_tokens: int = 0,
+    api_endpoint: str = None,
 ) -> StreamingResponse:
     """处理流式请求: CodeBuddy SSE -> Anthropic SSE"""
 
@@ -138,7 +142,7 @@ async def _handle_stream(
 
         try:
             async with client.stream(
-                "POST", get_codebuddy_api_url(),
+                "POST", get_codebuddy_api_url(api_endpoint),
                 json=payload, headers=headers,
             ) as response:
                 if response.status_code != 200:
@@ -218,11 +222,12 @@ async def _handle_non_stream(
     headers: dict,
     model: str,
     estimated_input_tokens: int = 0,
+    api_endpoint: str = None,
 ) -> dict:
     """处理非流式请求: 聚合 CodeBuddy SSE -> Anthropic Messages 响应"""
     client = await get_http_client()
     response = await client.post(
-        get_codebuddy_api_url(),
+        get_codebuddy_api_url(api_endpoint),
         json=payload, headers=headers,
     )
 

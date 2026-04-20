@@ -26,12 +26,13 @@ router = APIRouter()
 _codebuddy_api_url: Optional[str] = None
 _available_models: Optional[List[str]] = None
 
-def get_codebuddy_api_url() -> str:
-    """延迟加载 CodeBuddy API URL"""
+def get_codebuddy_api_url(api_endpoint: str = None) -> str:
+    """获取 CodeBuddy API URL，支持按凭证传入不同的 endpoint"""
+    if api_endpoint:
+        return f"{api_endpoint}/v2/chat/completions"
     global _codebuddy_api_url
     if _codebuddy_api_url is None:
-        from config import get_codebuddy_api_endpoint
-        _codebuddy_api_url = f"{get_codebuddy_api_endpoint()}/v2/chat/completions"
+        _codebuddy_api_url = "https://www.codebuddy.ai/v2/chat/completions"
     return _codebuddy_api_url
 
 def get_available_models_list() -> List[str]:
@@ -117,8 +118,11 @@ class AppLifecycleManager:
 
         # 预热连接：向上游 API 发起轻量请求，提前完成 DNS + TCP + TLS
         try:
-            from config import get_codebuddy_api_endpoint
-            endpoint = get_codebuddy_api_endpoint()
+            from src.codebuddy_token_manager import codebuddy_token_manager
+            endpoint = 'https://www.codebuddy.ai'
+            if codebuddy_token_manager.credentials:
+                first_cred_data = codebuddy_token_manager.credentials[0]['data']
+                endpoint = first_cred_data.get('api_endpoint', endpoint)
             probe_url = f"{endpoint}/health"
 
             import socket
@@ -501,11 +505,11 @@ class CodeBuddyStreamService:
         else:
             raise HTTPException(status_code=status_code, detail=detail)
     
-    async def handle_stream_response(self, payload: Dict[str, Any], headers: Dict[str, str]) -> StreamingResponse:
+    async def handle_stream_response(self, payload: Dict[str, Any], headers: Dict[str, str], api_endpoint: str = None) -> StreamingResponse:
         """处理流式响应 - 使用OpenAI兼容性转换器修复格式问题"""
         async def stream_core():
             client = await get_http_client()
-            async with client.stream("POST", get_codebuddy_api_url(), json=payload, headers=headers) as response:
+            async with client.stream("POST", get_codebuddy_api_url(api_endpoint), json=payload, headers=headers) as response:
                 if response.status_code != 200:
                     error_text = await response.aread()
                     error_msg = error_text.decode('utf-8', errors='ignore')
@@ -570,11 +574,11 @@ class CodeBuddyStreamService:
         
         return StreamingResponse(stream_with_retry(), media_type="text/event-stream", headers=SSE_HEADERS)
     
-    async def handle_non_stream_response(self, payload: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+    async def handle_non_stream_response(self, payload: Dict[str, Any], headers: Dict[str, str], api_endpoint: str = None) -> Dict[str, Any]:
         """处理非流式响应 - 使用修复后的聚合器，支持多工具调用"""
         try:
             client = await get_http_client()
-            response = await client.post(get_codebuddy_api_url(), json=payload, headers=headers)
+            response = await client.post(get_codebuddy_api_url(api_endpoint), json=payload, headers=headers)
             
             if response.status_code != 200:
                 error_msg = response.text
@@ -718,17 +722,20 @@ async def chat_completions(
                 conversation_id=x_conversation_id,
                 conversation_request_id=x_conversation_request_id,
                 conversation_message_id=x_conversation_message_id,
-                request_id=x_request_id
+                request_id=x_request_id,
+                enterprise_id=credential.get('enterprise_id'),
+                api_endpoint=credential.get('api_endpoint')
             )
 
             # 使用服务类处理请求
             service = CodeBuddyStreamService()
 
             try:
+                cred_api_endpoint = credential.get('api_endpoint')
                 if client_wants_stream:
-                    return await service.handle_stream_response(payload, headers)
+                    return await service.handle_stream_response(payload, headers, api_endpoint=cred_api_endpoint)
                 else:
-                    return await service.handle_non_stream_response(payload, headers)
+                    return await service.handle_non_stream_response(payload, headers, api_endpoint=cred_api_endpoint)
             except HTTPException as e:
                 # 检查是否为积分相关错误
                 error_detail = str(e.detail) if e.detail else ""
@@ -818,16 +825,29 @@ async def add_credential(
         if not data.get("bearer_token"):
             raise HTTPException(status_code=422, detail="bearer_token is required")
 
-        success = codebuddy_token_manager.add_credential(
-            data.get("bearer_token"),
-            data.get("user_id"),
-            data.get("filename")
+        api_endpoint = data.get("api_endpoint", "https://www.codebuddy.ai")
+        enterprise_id = data.get("enterprise_id")
+
+        credential_data = {
+            "bearer_token": data.get("bearer_token"),
+            "user_id": data.get("user_id"),
+            "created_at": int(time.time()),
+            "api_endpoint": api_endpoint,
+            "enterprise_id": enterprise_id,
+        }
+        credential_data = {k: v for k, v in credential_data.items() if v is not None}
+
+        success = codebuddy_token_manager.add_credential_with_data(
+            credential_data=credential_data,
+            filename=data.get("filename")
         )
         if not success:
             raise HTTPException(status_code=500, detail="Failed to save credential file")
-        
+
         return {"message": "Credential added successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"添加凭证失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

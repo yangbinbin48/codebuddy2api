@@ -26,10 +26,10 @@ class CreditManager:
 
     async def query_credential_credits(self, credential_data: Dict, index: int) -> Optional[Dict]:
         """查询单个凭证的积分信息"""
-        from config import get_codebuddy_api_endpoint, get_enterprise_id
         from src.codebuddy_router import get_http_client
 
-        api_endpoint = get_codebuddy_api_endpoint()
+        api_endpoint = credential_data.get('api_endpoint', 'https://www.codebuddy.ai')
+        enterprise_id = credential_data.get('enterprise_id')
         url = f"{api_endpoint}/v2/billing/meter/get-user-resource"
 
         bearer_token = credential_data.get('bearer_token')
@@ -54,8 +54,6 @@ class CreditManager:
             "Authorization": f"Bearer {bearer_token}"
         }
 
-        # 企业版额外请求头
-        enterprise_id = get_enterprise_id()
         if enterprise_id:
             headers["X-Enterprise-Id"] = enterprise_id
             headers["X-Tenant-Id"] = enterprise_id
