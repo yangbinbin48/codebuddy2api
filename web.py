@@ -30,7 +30,22 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info("Starting CodeBuddy2API Service")
     try:
-        # 启动时初始化资源
+        # 预加载 tiktoken（避免首次请求延迟）
+        try:
+            import tiktoken
+            tiktoken.get_encoding("cl100k_base")
+            logger.info("tiktoken 预加载完成")
+        except ImportError:
+            logger.info("tiktoken 未安装，跳过预加载")
+        except Exception as e:
+            logger.warning(f"tiktoken 预加载失败: {e}")
+
+        # 预解析 API URL（触发延迟加载）
+        from src.codebuddy_router import get_codebuddy_api_url, get_available_models_list
+        get_codebuddy_api_url()
+        get_available_models_list()
+
+        # 启动时初始化资源（包含连接预热）
         await lifecycle_manager.startup()
         yield
     finally:

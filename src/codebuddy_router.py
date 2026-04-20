@@ -107,14 +107,42 @@ async def close_http_client():
 # --- 应用生命周期管理 ---
 class AppLifecycleManager:
     """应用生命周期管理器 - 处理资源清理"""
-    
+
     @staticmethod
     async def startup():
         """应用启动时的初始化"""
         logger.info("CodeBuddy Router 启动中...")
-        # 预热连接池
-        await get_http_client()
-        logger.info("HTTP 连接池已初始化")
+        # 创建 HTTP 客户端
+        client = await get_http_client()
+
+        # 预热连接：向上游 API 发起轻量请求，提前完成 DNS + TCP + TLS
+        try:
+            from config import get_codebuddy_api_endpoint
+            endpoint = get_codebuddy_api_endpoint()
+            probe_url = f"{endpoint}/health"
+
+            import socket
+            from urllib.parse import urlparse
+            parsed = urlparse(endpoint)
+            hostname = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+
+            # DNS 预解析
+            start = time.time()
+            resolved = socket.getaddrinfo(hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            dns_ms = (time.time() - start) * 1000
+            logger.info(f"DNS 预解析完成: {hostname} -> {resolved[0][4][0] if resolved else 'N/A'} ({dns_ms:.0f}ms)")
+
+            # 建立真实 HTTP 连接（连接池会缓存此连接）
+            start = time.time()
+            probe_resp = await client.get(probe_url, timeout=httpx.Timeout(10.0, connect=5.0))
+            connect_ms = (time.time() - start) * 1000
+            logger.info(f"连接预热完成: {probe_resp.status_code} ({connect_ms:.0f}ms)")
+        except Exception as e:
+            # 预热失败不影响服务启动，仅记录警告
+            logger.warning(f"连接预热失败（不影响服务）: {e}")
+
+        logger.info("HTTP 连接池已初始化并预热")
     
     @staticmethod
     async def shutdown():
