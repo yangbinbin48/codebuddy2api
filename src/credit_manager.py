@@ -58,6 +58,12 @@ class CreditManager:
                 "Authorization": f"Bearer {bearer_token}",
                 "X-Enterprise-Id": enterprise_id,
                 "X-Tenant-Id": enterprise_id,
+                # 企业版标识请求头
+                "X-Product": "Cloud-Hosted",
+                "X-IDE-Type": "VSCode",
+                "X-IDE-Version": "1.115.0",
+                "X-Product-Version": "4.2.22590715",
+                "X-Env-ID": "production",
             }
             # 使用凭证配置的 User-Agent
             user_agent = credential_data.get('user_agent')
