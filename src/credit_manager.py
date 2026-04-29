@@ -59,6 +59,10 @@ class CreditManager:
                 "X-Enterprise-Id": enterprise_id,
                 "X-Tenant-Id": enterprise_id,
             }
+            # 使用凭证配置的 User-Agent
+            user_agent = credential_data.get('user_agent')
+            if user_agent:
+                headers["User-Agent"] = user_agent
             user_id = credential_data.get('user_id')
             if user_id:
                 headers["X-User-Id"] = user_id
@@ -81,8 +85,13 @@ class CreditManager:
                     "Host": host,
                     "Origin": origin,
                     "Referer": f"{origin}/agents",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0",
                 }
+                # 使用凭证配置的 User-Agent，否则使用默认浏览器 UA
+                user_agent = credential_data.get('user_agent')
+                if user_agent:
+                    headers["User-Agent"] = user_agent
+                else:
+                    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
             elif bearer_token:
                 # 回退：使用 Bearer token 走 /v2 路径
                 url = f"{api_endpoint}/v2/billing/meter/get-user-resource"
@@ -92,6 +101,10 @@ class CreditManager:
                     "Accept": "application/json, text/plain, */*",
                     "Authorization": f"Bearer {bearer_token}",
                 }
+                # 使用凭证配置的 User-Agent
+                user_agent = credential_data.get('user_agent')
+                if user_agent:
+                    headers["User-Agent"] = user_agent
             else:
                 logger.info(f"[CreditManager] Credential #{index} has no session_cookie or bearer_token, skip billing query")
                 return None
