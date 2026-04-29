@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, List, AsyncGenerator
 
 import httpx
 from fastapi import APIRouter, HTTPException, Depends, Request, Header
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 
 from .auth import authenticate
 from .codebuddy_api_client import codebuddy_api_client
@@ -168,6 +168,59 @@ SSE_HEADERS = {
 }
 
 # --- 辅助函数 ---
+
+# HTTP 缓存相关的请求头和响应头
+CACHE_REQUEST_HEADERS = {
+    'If-None-Match',
+    'If-Modified-Since',
+    'If-Unmodified-Since',
+    'If-Match',
+    'Cache-Control',
+}
+
+CACHE_RESPONSE_HEADERS = {
+    'ETag',
+    'Cache-Control',
+    'Last-Modified',
+    'Expires',
+    'Age',
+    'Date',
+}
+
+
+def extract_cache_headers(headers: dict, header_set: set) -> dict:
+    """从请求头中提取指定的缓存相关头
+
+    Args:
+        headers: 原始请求头字典
+        header_set: 要提取的请求头名称集合
+
+    Returns:
+        包含提取出的缓存头的字典
+    """
+    return {
+        key: value
+        for key, value in headers.items()
+        if key in header_set
+    }
+
+
+def merge_response_headers(target_headers: dict, source_headers: httpx.Headers) -> dict:
+    """将上游响应的缓存头合并到目标响应头中
+
+    Args:
+        target_headers: 目标响应头字典
+        source_headers: 上游响应的 httpx.Headers 对象
+
+    Returns:
+        合并后的响应头字典
+    """
+    for key in CACHE_RESPONSE_HEADERS:
+        value = source_headers.get(key)
+        if value:
+            target_headers[key] = value
+    return target_headers
+
 
 def format_sse_error(message: str, error_type: str = "stream_error") -> str:
     """格式化SSE错误响应"""
@@ -574,19 +627,19 @@ class CodeBuddyStreamService:
         
         return StreamingResponse(stream_with_retry(), media_type="text/event-stream", headers=SSE_HEADERS)
     
-    async def handle_non_stream_response(self, payload: Dict[str, Any], headers: Dict[str, str], api_endpoint: str = None) -> Dict[str, Any]:
+    async def handle_non_stream_response(self, payload: Dict[str, Any], headers: Dict[str, str], api_endpoint: str = None) -> JSONResponse:
         """处理非流式响应 - 使用修复后的聚合器，支持多工具调用"""
         try:
             client = await get_http_client()
             response = await client.post(get_codebuddy_api_url(api_endpoint), json=payload, headers=headers)
-            
+
             if response.status_code != 200:
                 error_msg = response.text
                 self._handle_api_error(response.status_code, error_msg)
-            
+
             aggregator = StreamResponseAggregator()
             buffer = ""
-            
+
             async for chunk in response.aiter_text():
                 if not chunk:
                     continue
@@ -596,14 +649,22 @@ class CodeBuddyStreamService:
                     obj = parse_sse_line(line)
                     if obj:
                         aggregator.process_chunk(obj)
-            
+
             if buffer.strip():
                 obj = parse_sse_line(buffer.strip())
                 if obj:
                     aggregator.process_chunk(obj)
-            
-            return aggregator.finalize()
-            
+
+            result = aggregator.finalize()
+
+            # 构建响应头，包含上游服务器返回的缓存相关头
+            response_headers = {
+                "Content-Type": "application/json"
+            }
+            merge_response_headers(response_headers, response.headers)
+
+            return JSONResponse(content=result, headers=response_headers)
+
         except httpx.TimeoutException:
             logger.error("CodeBuddy API 超时")
             raise HTTPException(status_code=504, detail="CodeBuddy API timeout")
@@ -707,6 +768,9 @@ async def chat_completions(
         usage_stats_manager.record_model_usage(payload.get("model", "unknown"))
         client_wants_stream = request_body.get("stream", False)
 
+        # 提取客户端的缓存请求头
+        client_cache_headers = extract_cache_headers(request.headers, CACHE_REQUEST_HEADERS)
+
         # 获取凭证总数用于最大重试次数
         from .credit_manager import credit_manager
         from src.codebuddy_token_manager import codebuddy_token_manager
@@ -734,6 +798,8 @@ async def chat_completions(
                 api_endpoint=credential.get('api_endpoint'),
                 user_agent=credential.get('user_agent')
             )
+            # 合并客户端的缓存请求头
+            headers.update(client_cache_headers)
             service = CodeBuddyStreamService()
             cred_api_endpoint = credential.get('api_endpoint')
             if client_wants_stream:
@@ -757,6 +823,8 @@ async def chat_completions(
                 api_endpoint=credential.get('api_endpoint'),
                 user_agent=credential.get('user_agent')
             )
+            # 合并客户端的缓存请求头
+            headers.update(client_cache_headers)
 
             # 使用服务类处理请求
             service = CodeBuddyStreamService()
