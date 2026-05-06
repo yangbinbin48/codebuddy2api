@@ -155,37 +155,43 @@ async def fetch_model_config(credential: dict) -> List[ModelInfo]:
     从 CodeBuddy API 获取模型配置
 
     Args:
-        credential: 凭证信息
+        credential: 凭证信息（CodeBuddyTokenManager 格式，包含 data 键）
 
     Returns:
         模型信息列表
     """
     import httpx
 
-    # 检查 token 是否有效
-    bearer_token = credential.get('bearer_token', '')
-    if not bearer_token:
-        logger.debug(f"凭证 {credential.get('user_id', 'unknown')} 没有 token，跳过获取模型配置")
+    # CodeBuddyTokenManager 的凭证格式: {'file_path': ..., 'data': {...}}
+    data = credential.get('data', {})
+    if not data:
+        logger.debug("凭证数据为空，跳过获取模型配置")
         return []
 
-    api_endpoint = credential.get("api_endpoint", "https://www.codebuddy.cn")
+    # 检查 token 是否有效
+    bearer_token = data.get('bearer_token', '')
+    if not bearer_token:
+        logger.debug(f"凭证 {data.get('user_id', 'unknown')} 没有 token，跳过获取模型配置")
+        return []
+
+    api_endpoint = data.get("api_endpoint", "https://www.codebuddy.cn")
     # 构建配置端点URL
     config_url = f"{api_endpoint}/v3/config"
 
-    headers = build_config_headers(credential)
+    headers = build_config_headers(data)
     headers["Authorization"] = f"Bearer {bearer_token}"
 
     try:
         async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
             response = await client.get(config_url, headers=headers)
             response.raise_for_status()
-            data = response.json()
+            resp_data = response.json()
 
-            if data.get("code") != 0:
-                logger.warning(f"获取模型配置失败: {data.get('msg', 'Unknown error')}")
+            if resp_data.get("code") != 0:
+                logger.warning(f"获取模型配置失败: {resp_data.get('msg', 'Unknown error')}")
                 return []
 
-            models_data = data.get("data", {}).get("models")
+            models_data = resp_data.get("data", {}).get("models")
             if not models_data:
                 logger.info("API 返回的 models 为 null 或空")
                 return []
