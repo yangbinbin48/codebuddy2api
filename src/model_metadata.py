@@ -162,12 +162,18 @@ async def fetch_model_config(credential: dict) -> List[ModelInfo]:
     """
     import httpx
 
+    # 检查 token 是否有效
+    bearer_token = credential.get('bearer_token', '')
+    if not bearer_token:
+        logger.debug(f"凭证 {credential.get('user_id', 'unknown')} 没有 token，跳过获取模型配置")
+        return []
+
     api_endpoint = credential.get("api_endpoint", "https://www.codebuddy.cn")
     # 构建配置端点URL
     config_url = f"{api_endpoint}/v3/config"
 
     headers = build_config_headers(credential)
-    headers["Authorization"] = f"Bearer {credential.get('bearer_token', '')}"
+    headers["Authorization"] = f"Bearer {bearer_token}"
 
     try:
         async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
