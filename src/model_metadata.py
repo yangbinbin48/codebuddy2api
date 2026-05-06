@@ -130,21 +130,23 @@ def build_config_headers(credential: dict) -> dict:
 
     if site_type == "enterprise":
         # 企业版请求头
+        user_agent = credential.get("user_agent") or "VSCode/1.115.0 H3CAICODE/4.2.22590715"
         headers.update({
             "X-User-Id": user_info.get("sub", ""),
             "X-Enterprise-Id": credential.get("enterprise_id", ""),
             "X-Tenant-Id": credential.get("enterprise_id", ""),
             "X-Domain": credential.get("domain", ""),
             "X-Product": "Cloud-Hosted",
-            "User-Agent": credential.get("user_agent", "VSCode/1.115.0 H3CAICODE/4.2.22590715"),
+            "User-Agent": user_agent,
         })
     else:
         # 个人版请求头
+        user_agent = credential.get("user_agent") or "VSCode/1.115.0 CodeBuddy/4.3.20019762"
         headers.update({
             "X-User-Id": user_info.get("sub", ""),
-            "X-Domain": credential.get("domain", "www.codebuddy.cn"),
+            "X-Domain": credential.get("domain") or "www.codebuddy.cn",
             "X-Product": "SaaS",
-            "User-Agent": credential.get("user_agent", "VSCode/1.115.0 CodeBuddy/4.3.20019762"),
+            "User-Agent": user_agent,
         })
 
     return headers
@@ -174,9 +176,19 @@ async def fetch_model_config(credential: dict) -> List[ModelInfo]:
         logger.debug(f"凭证 {data.get('user_id', 'unknown')} 没有 token，跳过获取模型配置")
         return []
 
-    api_endpoint = data.get("api_endpoint", "https://www.codebuddy.cn")
     # 构建配置端点URL
-    config_url = f"{api_endpoint}/v3/config"
+    # 注意：/v3/config 端点的域名可能与 api_endpoint 不同
+    site_type = data.get("site_type", "china")
+    if site_type == "enterprise":
+        # 企业版使用 api_endpoint 的域名
+        api_endpoint = data.get("api_endpoint", "https://h3c.copilot.qq.com")
+        config_url = f"{api_endpoint}/v3/config"
+    else:
+        # 个人版和国际版使用固定的域名
+        if site_type == "international":
+            config_url = "https://api.codebuddy.ai/v3/config"
+        else:
+            config_url = "https://copilot.tencent.com/v3/config"
 
     headers = build_config_headers(data)
     headers["Authorization"] = f"Bearer {bearer_token}"
