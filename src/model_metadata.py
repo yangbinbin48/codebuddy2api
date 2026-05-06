@@ -193,8 +193,13 @@ async def fetch_model_config(credential: dict) -> List[ModelInfo]:
     headers = build_config_headers(data)
     headers["Authorization"] = f"Bearer {bearer_token}"
 
+    # 获取代理配置
+    from config import get_proxy
+    proxy = get_proxy()
+    proxies = {"http://": proxy, "https://": proxy} if proxy else None
+
     try:
-        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+        async with httpx.AsyncClient(timeout=10.0, verify=False, proxies=proxies) as client:
             response = await client.get(config_url, headers=headers)
             response.raise_for_status()
             resp_data = response.json()
