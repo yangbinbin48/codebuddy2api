@@ -96,7 +96,8 @@ async def messages(
                 bearer_token=credential.get('bearer_token'),
                 user_id=credential.get('user_id'),
                 enterprise_id=credential.get('enterprise_id'),
-                api_endpoint=credential.get('api_endpoint')
+                api_endpoint=credential.get('api_endpoint'),
+                user_agent=credential.get('user_agent')
             )
 
             try:
