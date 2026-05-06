@@ -1,0 +1,38 @@
+{
+    "bearer_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJteWZFenA3ODNLaV9KQ3g4Vm5jM1hfaXg2alpyYjZDZjVPTWtHWk1QSTNzIn0.eyJleHAiOjE4MDgyMTE4ODgsImlhdCI6MTc3NjY4Nzg1NSwiYXV0aF90aW1lIjoxNzc2Njc1ODg4LCJqdGkiOiI5ZWRkNmI4YS1mYWQ3LTQyY2UtODkxNi00NWFmZjA1ZWY3NDIiLCJpc3MiOiJodHRwczovL3d3dy5jb2RlYnVkZHkuY24vYXV0aC9yZWFsbXMvY29waWxvdCIsImF1ZCI6ImFjY291bnQiLCJzdWIiOiI1MjM4MTJhNS04ZTE0LTQ3MDItOWRiMS1lOWQxNGYyYzIzOGIiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJjb25zb2xlIiwic2lkIjoiMjAyNmU4NWEtOGM2Yy00OTc2LWFhZTItNmZjMzc4NjUzOGVlIiwiYWNyIjoiMCIsImFsbG93ZWQtb3JpZ2lucyI6WyIqIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJkZWZhdWx0LXJvbGVzIiwib2ZmbGluZV9hY2Nlc3MiLCJ1bWFfYXV0aG9yaXphdGlvbiJdfSwicmVzb3VyY2VfYWNjZXNzIjp7ImFjY291bnQiOnsicm9sZXMiOlsibWFuYWdlLWFjY291bnQiLCJtYW5hZ2UtYWNjb3VudC1saW5rcyIsInZpZXctcHJvZmlsZSJdfX0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgb2ZmbGluZV9hY2Nlc3MgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6ZmFsc2UsIm5pY2tuYW1lIjoi566A56ewWeWFiOeUnyIsInByZWZlcnJlZF91c2VybmFtZSI6IjE4NTAyODYyODc4In0.sHhLsdqGRDkaxoXzu4NdPnsA69UYL0r-F1Ge2q2gXn1yP7yOALjoYkxntFBePkvspbRBQLA5RV9PEbimK3DDHiGJRi3rVgLU-6POx9O_REOoTaZ_uhI1fdMO3kVrQLMk71us0IswoVxdp5GkB25NorZM9Yr35S1DaQudV6mpNCLWJxVa__3yN42AwydouU-cn4Dc4HAls1Du_Lh1EiOav0P2qqxxP-1-R_XZbKwjpfSzpgw_ZrBeVy727VU2gix49jAO66tZCRnHLZ7vjRmWKlgLdHzjmTs9yZbzvR3CsMKfWclA9WqtEg0zWRB23dB0Fhkxz7VUjjUQ_rq9oEDS3w",
+    "user_id": "18502862878",
+    "created_at": 1776687862,
+    "expires_in": 31524030,
+    "refresh_token": "eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI2M2I4YzRkNS1jMTJjLTRhMGQtYjk5NC01ZTBjMDY0N2QwMDIifQ.eyJleHAiOjE4MDgyMTE4ODgsImlhdCI6MTc3NjY4Nzg1NSwianRpIjoiMjJkMzQ2YjMtYjhkYy00NjJjLTllNTQtMGUwM2VhYzA0NjI0IiwiaXNzIjoiaHR0cHM6Ly93d3cuY29kZWJ1ZGR5LmNuL2F1dGgvcmVhbG1zL2NvcGlsb3QiLCJhdWQiOiJodHRwczovL3d3dy5jb2RlYnVkZHkuY24vYXV0aC9yZWFsbXMvY29waWxvdCIsInN1YiI6IjUyMzgxMmE1LThlMTQtNDcwMi05ZGIxLWU5ZDE0ZjJjMjM4YiIsInR5cCI6Ik9mZmxpbmUiLCJhenAiOiJjb25zb2xlIiwic2lkIjoiMjAyNmU4NWEtOGM2Yy00OTc2LWFhZTItNmZjMzc4NjUzOGVlIiwic2NvcGUiOiJvcGVuaWQgYWNyIHByb2ZpbGUgYmFzaWMgd2ViLW9yaWdpbnMgcm9sZXMgb2ZmbGluZV9hY2Nlc3MgZW1haWwifQ.W0uJ7CLmP5sOAky9JytvdVDODWSmJsLABdQl_-AJ-jDI289dS-gS1k8Pl2tnbJyQ9vX1zfGPI4d2NnEsMVc3mA",
+    "token_type": "Bearer",
+    "scope": "openid profile offline_access email",
+    "domain": "www.codebuddy.cn",
+    "session_state": "2026e85a-8c6c-4976-aae2-6fc3786538ee",
+    "user_info": {
+        "sub": "523812a5-8e14-4702-9db1-e9d14f2c238b",
+        "preferred_username": "18502862878",
+        "exp": 1808211888,
+        "iat": 1776687855,
+        "scope": "openid profile offline_access email",
+        "session_state": "2026e85a-8c6c-4976-aae2-6fc3786538ee"
+    },
+    "api_endpoint": "https://www.codebuddy.cn",
+    "site_type": "china",
+    "full_response": {
+        "code": 0,
+        "msg": "OK",
+        "requestId": "31925943f17b407a85f52c2a4a130d2d",
+        "data": {
+            "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJteWZFenA3ODNLaV9KQ3g4Vm5jM1hfaXg2alpyYjZDZjVPTWtHWk1QSTNzIn0.eyJleHAiOjE4MDgyMTE4ODgsImlhdCI6MTc3NjY4Nzg1NSwiYXV0aF90aW1lIjoxNzc2Njc1ODg4LCJqdGkiOiI5ZWRkNmI4YS1mYWQ3LTQyY2UtODkxNi00NWFmZjA1ZWY3NDIiLCJpc3MiOiJodHRwczovL3d3dy5jb2RlYnVkZHkuY24vYXV0aC9yZWFsbXMvY29waWxvdCIsImF1ZCI6ImFjY291bnQiLCJzdWIiOiI1MjM4MTJhNS04ZTE0LTQ3MDItOWRiMS1lOWQxNGYyYzIzOGIiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJjb25zb2xlIiwic2lkIjoiMjAyNmU4NWEtOGM2Yy00OTc2LWFhZTItNmZjMzc4NjUzOGVlIiwiYWNyIjoiMCIsImFsbG93ZWQtb3JpZ2lucyI6WyIqIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJkZWZhdWx0LXJvbGVzIiwib2ZmbGluZV9hY2Nlc3MiLCJ1bWFfYXV0aG9yaXphdGlvbiJdfSwicmVzb3VyY2VfYWNjZXNzIjp7ImFjY291bnQiOnsicm9sZXMiOlsibWFuYWdlLWFjY291bnQiLCJtYW5hZ2UtYWNjb3VudC1saW5rcyIsInZpZXctcHJvZmlsZSJdfX0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgb2ZmbGluZV9hY2Nlc3MgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6ZmFsc2UsIm5pY2tuYW1lIjoi566A56ewWeWFiOeUnyIsInByZWZlcnJlZF91c2VybmFtZSI6IjE4NTAyODYyODc4In0.sHhLsdqGRDkaxoXzu4NdPnsA69UYL0r-F1Ge2q2gXn1yP7yOALjoYkxntFBePkvspbRBQLA5RV9PEbimK3DDHiGJRi3rVgLU-6POx9O_REOoTaZ_uhI1fdMO3kVrQLMk71us0IswoVxdp5GkB25NorZM9Yr35S1DaQudV6mpNCLWJxVa__3yN42AwydouU-cn4Dc4HAls1Du_Lh1EiOav0P2qqxxP-1-R_XZbKwjpfSzpgw_ZrBeVy727VU2gix49jAO66tZCRnHLZ7vjRmWKlgLdHzjmTs9yZbzvR3CsMKfWclA9WqtEg0zWRB23dB0Fhkxz7VUjjUQ_rq9oEDS3w",
+            "expiresIn": 31524030,
+            "refreshExpiresIn": 31524030,
+            "refreshToken": "eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI2M2I4YzRkNS1jMTJjLTRhMGQtYjk5NC01ZTBjMDY0N2QwMDIifQ.eyJleHAiOjE4MDgyMTE4ODgsImlhdCI6MTc3NjY4Nzg1NSwianRpIjoiMjJkMzQ2YjMtYjhkYy00NjJjLTllNTQtMGUwM2VhYzA0NjI0IiwiaXNzIjoiaHR0cHM6Ly93d3cuY29kZWJ1ZGR5LmNuL2F1dGgvcmVhbG1zL2NvcGlsb3QiLCJhdWQiOiJodHRwczovL3d3dy5jb2RlYnVkZHkuY24vYXV0aC9yZWFsbXMvY29waWxvdCIsInN1YiI6IjUyMzgxMmE1LThlMTQtNDcwMi05ZGIxLWU5ZDE0ZjJjMjM4YiIsInR5cCI6Ik9mZmxpbmUiLCJhenAiOiJjb25zb2xlIiwic2lkIjoiMjAyNmU4NWEtOGM2Yy00OTc2LWFhZTItNmZjMzc4NjUzOGVlIiwic2NvcGUiOiJvcGVuaWQgYWNyIHByb2ZpbGUgYmFzaWMgd2ViLW9yaWdpbnMgcm9sZXMgb2ZmbGluZV9hY2Nlc3MgZW1haWwifQ.W0uJ7CLmP5sOAky9JytvdVDODWSmJsLABdQl_-AJ-jDI289dS-gS1k8Pl2tnbJyQ9vX1zfGPI4d2NnEsMVc3mA",
+            "tokenType": "Bearer",
+            "sessionState": "2026e85a-8c6c-4976-aae2-6fc3786538ee",
+            "scope": "openid profile offline_access email",
+            "domain": "www.codebuddy.cn"
+        }
+    },
+    "enterprise_id": null,
+    "user_agent": null
+}

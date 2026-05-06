@@ -170,15 +170,20 @@ async def fetch_model_config(credential: dict) -> List[ModelInfo]:
         logger.debug("凭证数据为空，跳过获取模型配置")
         return []
 
+    # 提前定义 user_id，供后续日志使用
+    user_id = data.get('user_id', 'unknown')
+
     # 检查 token 是否有效
     bearer_token = data.get('bearer_token', '')
     if not bearer_token:
-        logger.debug(f"凭证 {data.get('user_id', 'unknown')} 没有 token，跳过获取模型配置")
+        logger.debug(f"凭证 {user_id} 没有 token，跳过获取模型配置")
         return []
 
     # 构建配置端点URL
     # 注意：/v3/config 端点的域名可能与 api_endpoint 不同
+    # site_type 在 data 字典内
     site_type = data.get("site_type", "china")
+
     if site_type == "enterprise":
         # 企业版使用 api_endpoint 的域名
         api_endpoint = data.get("api_endpoint", "https://h3c.copilot.qq.com")
@@ -193,15 +198,35 @@ async def fetch_model_config(credential: dict) -> List[ModelInfo]:
     headers = build_config_headers(data)
     headers["Authorization"] = f"Bearer {bearer_token}"
 
+    # 添加更多浏览器标准请求头，模拟浏览器行为
+    headers.update({
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "Connection": "keep-alive",
+    })
+
     # 获取代理配置
     from config import get_proxy
     proxy = get_proxy()
     proxies = {"http://": proxy, "https://": proxy} if proxy else None
 
+    # 调试日志
+    logger.info(f"[{user_id}] 开始获取模型配置...")
+    logger.info(f"[{user_id}]   配置端点: {config_url}")
+    logger.info(f"[{user_id}]   代理设置: {'启用 - ' + proxy if proxy else '未设置（直连）'}")
+
     try:
-        async with httpx.AsyncClient(timeout=10.0, verify=False, proxies=proxies) as client:
+        # 使用 HTTP/1.1，某些服务器对 HTTP/2 支持不好
+        async with httpx.AsyncClient(timeout=30.0, verify=False, proxies=proxies, http1=True) as client:
+            logger.info(f"[{user_id}]   发送请求到 {config_url}")
             response = await client.get(config_url, headers=headers)
             response.raise_for_status()
+            logger.info(f"[{user_id}]   响应状态: {response.status_code}")
             resp_data = response.json()
 
             if resp_data.get("code") != 0:
@@ -231,11 +256,17 @@ async def fetch_model_config(credential: dict) -> List[ModelInfo]:
             return models
 
     except httpx.HTTPStatusError as e:
-        logger.warning(f"HTTP 错误获取模型配置: {e}")
+        logger.warning(f"[{user_id}] HTTP 状态错误: {e.response.status_code} - {e.response.text[:200]}")
     except httpx.RequestError as e:
-        logger.warning(f"网络错误获取模型配置: {e}")
+        logger.warning(f"[{user_id}] 网络请求错误: {type(e).__name__}: {e}")
+        if "proxy" in str(e).lower() or "tunnel" in str(e).lower():
+            logger.warning(f"[{user_id}]   可能是代理配置问题，请检查代理设置")
+        elif "timeout" in str(e).lower() or "timed out" in str(e).lower():
+            logger.warning(f"[{user_id}]   请求超时，服务器响应缓慢")
+        elif "connect" in str(e).lower() or "connection" in str(e).lower():
+            logger.warning(f"[{user_id}]   连接失败，无法访问服务器")
     except Exception as e:
-        logger.error(f"获取模型配置时发生意外错误: {e}")
+        logger.error(f"[{user_id}] 意外错误: {type(e).__name__}: {e}")
 
     return []
 
