@@ -864,16 +864,31 @@ async def chat_completions(
 async def list_v1_models(_token: str = Depends(authenticate)):
     """获取CodeBuddy V1模型列表"""
     try:
+        from .model_metadata import get_model_cache, _get_default_context_window, _get_default_max_tokens
+
+        model_ids = get_available_models_list()
+        model_cache = get_model_cache()
+
+        # 如果缓存有数据，使用增强的模型信息
+        if not model_cache.is_empty():
+            return {
+                "object": "list",
+                "data": model_cache.get_enhanced_model_list(model_ids)
+            }
+
+        # 缓存为空，返回基础数据 + 默认值
         return {
             "object": "list",
             "data": [{
                 "id": model,
                 "object": "model",
                 "created": int(time.time()),
-                "owned_by": "codebuddy"
-            } for model in get_available_models_list()]
+                "owned_by": "codebuddy",
+                "context_window": _get_default_context_window(),
+                "max_tokens": _get_default_max_tokens(),
+            } for model in model_ids]
         }
-        
+
     except Exception as e:
         logger.error(f"获取V1模型列表错误: {e}")
         raise HTTPException(status_code=500, detail="获取模型列表失败")

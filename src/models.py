@@ -57,3 +57,13 @@ class CredentialInfo(BaseModel):
     user_id: str
     created_at: int
     has_token: bool
+
+
+class ModelWithMetadata(BaseModel):
+    """增强的模型信息（用于 /v1/models 返回）"""
+    id: str
+    object: str = "model"
+    created: int = 0
+    owned_by: str = "codebuddy"
+    context_window: int
+    max_tokens: int

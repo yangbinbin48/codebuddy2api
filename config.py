@@ -29,6 +29,8 @@ _DEFAULT_CONFIG = {
     "CODEBUDDY_ROTATION_COUNT": 1,
     "CODEBUDDY_PROXY": None,
     "CODEBUDDY_AUTH_TIMEOUT": 30,
+    "CODEBUDDY_DEFAULT_CONTEXT_WINDOW": 200000,
+    "CODEBUDDY_DEFAULT_MAX_TOKENS": 4096,
 }
 
 # --- Core Functions ---
@@ -134,6 +136,12 @@ def get_proxy() -> Optional[str]:
 
 def get_auth_timeout() -> int:
     return int(_get_config_value("CODEBUDDY_AUTH_TIMEOUT"))
+
+def get_default_context_window() -> int:
+    return int(_get_config_value("CODEBUDDY_DEFAULT_CONTEXT_WINDOW"))
+
+def get_default_max_tokens() -> int:
+    return int(_get_config_value("CODEBUDDY_DEFAULT_MAX_TOKENS"))
 
 # --- Public Setter for Hot-Reload ---
 

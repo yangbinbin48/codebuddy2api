@@ -60,6 +60,15 @@ async def lifespan(app: FastAPI):
         # 启动时初始化资源（包含连接预热）
         await lifecycle_manager.startup()
 
+        # 初始化模型元数据缓存
+        try:
+            from src.model_metadata import initialize_model_metadata
+            from src.codebuddy_token_manager import codebuddy_token_manager
+            credentials = codebuddy_token_manager.credentials
+            await initialize_model_metadata(credentials)
+        except Exception as e:
+            logger.warning(f"模型元数据初始化失败: {e}，将使用默认值")
+
         # 启动后台积分刷新任务
         from src.credit_manager import credit_manager
         credit_refresh_task = asyncio.create_task(_periodic_credit_refresh(credit_manager))

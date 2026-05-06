@@ -12,13 +12,11 @@ def authenticate(credentials = Depends(security)) -> str:
     """验证用户身份"""
     password = get_server_password()
     if not password:
-        raise HTTPException(
-            status_code=500, 
-            detail="CODEBUDDY_PASSWORD is not configured on the server."
-        )
-    
+        # 未设置密码，跳过认证
+        return "no-auth"
+
     token = credentials.credentials
     if token != password:
         raise HTTPException(status_code=403, detail="Invalid password")
-    
+
     return token
