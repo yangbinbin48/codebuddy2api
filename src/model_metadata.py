@@ -211,9 +211,13 @@ async def fetch_model_config(credential: dict) -> List[ModelInfo]:
     })
 
     # 获取代理配置
+    # 当 CODEBUDDY_PROXY 未配置时，显式传递空代理以阻止 httpx 使用系统环境变量中的全局代理
     from config import get_proxy
     proxy = get_proxy()
-    proxies = {"http://": proxy, "https://": proxy} if proxy else None
+    if proxy:
+        proxies = {"http://": proxy, "https://": proxy}
+    else:
+        proxies = {}
 
     # 调试日志
     logger.info(f"[{user_id}] 开始获取模型配置...")
